@@ -1,0 +1,194 @@
+created  .gitignore file.
+
+Changed branch to Main --  git branch -M main.
+
+Connected local repo to git -- git remote add origin repo link and username.
+
+push origin to main -- git push -u origin main.
+
+created frontend and backend and pushed.
+
+created seperate branch -- git checkout -b feature/frontend-setup.
+
+installed vite in frontend -- npm create vite@latest frontend -- --template react.
+
+Current frontend status ✅
+React + Vite created
+Tailwind CSS installed and configured
+React Router installed
+Axios installed
+ESLint included
+Tailwind tested successfully
+Frontend setup committed using Git
+Feature branch → Pull Request → merged into main
+Local repository synchronized
+Completed feature branch cleaned up
+
+-------------------------------------------------------------------------------------------------------------------------------------
+
+Backend :-
+
+Phase 1: Backend Foundation -- done
+ 1. Spring Boot Project Setup
+**Spring Boot configuration
+**Required dependencies
+**Environment configuration
+
+
+ 2. PostgreSQL Setup -- done
+**Database connection
+**JPA configuration
+**Production-friendly environment variables
+ 
+3. Project Architecture -- 
+**Clean package/module structure
+**DTO structure
+**Configuration setup
+
+Phase 2: Security & Authentication
+
+ 4. User Module
+User entity
+Roles: USER, ADMIN
+User repository
+
+ 5. JWT Authentication
+Register
+Login
+Password encryption
+JWT generation and validation
+
+ 6. OAuth Authentication
+Google login
+GitHub login
+
+ 7. Mobile Authentication
+Mobile number login
+OTP flow
+
+ 8. Authorization & Security
+Protected APIs
+Role-based access
+USER/Admin permissions
+
+
+Phase 3: College Information
+
+ 9. College Information Module
+College details
+Courses
+Departments
+Facilities
+
+ 10. Fees & Admission Information
+Management fees
+PGCET fees
+CET information
+Cutoff information
+
+
+Phase 4: Admin Module
+
+ 11. Admin Panel APIs
+Admin-only access
+College information management
+
+ 12. PDF Upload Module
+Upload detailed college PDF
+File validation
+Secure file handling
+
+Phase 5: RAG & AI System 🤖
+
+ 13. PDF Processing
+Extract text from PDF
+Clean/process content
+Chunk the document
+
+ 14. Embeddings
+Convert chunks into vector embeddings
+
+ 15. ChromaDB Integration
+Store embeddings
+Store document metadata
+Vector similarity search
+
+ 16. RAG Pipeline
+User question
+Retrieve relevant college information
+Send context to LLM
+Generate context-aware answer
+
+ 17. AI Chat Module
+Chat APIs
+Chat history
+User conversations
+
+Phase 6: College Navigation 🗺️
+
+ 18. College Location Module
+Important campus locations
+Washrooms
+Hostel
+Canteen
+Departments
+
+ 19. Navigation / Route Module
+Source location
+Destination location
+Route information
+
+Phase 7: Voice Enquiry System 📞
+
+ 20. Enquiry Call Integration
+Incoming enquiry number
+Twilio integration
+Webhook handling
+
+ 21. Language Selection
+Ask user's preferred language
+
+ 22. Voice AI Pipeline
+Speech-to-Text
+Process user question through RAG/AI
+Generate response
+Text-to-Speech
+
+Phase 8: Production Quality
+
+ 23. Validation & Exception Handling
+Global exception handling
+Request validation
+Proper error responses
+
+ 24. Logging
+Application logs
+Error logs
+Important feature logs
+
+ 25. API Documentation
+Swagger / OpenAPI documentation
+
+ 26. Testing
+Module/API testing
+Integration testing
+
+ 27. Deployment Preparation
+Environment variables
+Production configuration
+Docker configuration where needed
+
+ 28. Backend Deployment
+Deploy backend
+Connect PostgreSQL
+Configure external services
+Production testing
+-------------------------------------------------------------------------------------------------------------------------------------
+
+controller  → receives HTTP requests
+service     → contains business logic
+repository  → communicates with database
+entity      → database tables
+dto         → request/response data
+config      → application configuration
+exception   → error handling
