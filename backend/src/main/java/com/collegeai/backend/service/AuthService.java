@@ -4,6 +4,8 @@ import com.collegeai.backend.dto.LoginRequest;
 import com.collegeai.backend.dto.RegisterRequest;
 import com.collegeai.backend.dto.UserResponse;
 import com.collegeai.backend.entity.User;
+import com.collegeai.backend.exception.EmailAlreadyExistsException;
+import com.collegeai.backend.exception.InvalidCredentialsException;
 import com.collegeai.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,7 +26,7 @@ public class AuthService {
 
         // Check whether the email is already registered
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email is already registered");
+            throw new EmailAlreadyExistsException("Email is already registered");
         }
 
         // Create a new user entity
@@ -52,14 +54,15 @@ public class AuthService {
 
         // Find the existing user using the email
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+                .orElseThrow(() ->
+                        new InvalidCredentialsException("Invalid email or password"));
 
         // Compare entered password with the stored BCrypt hash
         if (!passwordEncoder.matches(
                 request.getPassword(),
                 user.getPassword())) {
 
-            throw new RuntimeException("Invalid email or password");
+            throw new InvalidCredentialsException("Invalid email or password");
         }
 
         // Return safe user information without the password
