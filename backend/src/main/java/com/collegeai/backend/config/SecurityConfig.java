@@ -14,16 +14,19 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
+        System.out.println(">>> SecurityConfig is loaded");
+
         http
                 // Disable CSRF for our REST API
                 .csrf(csrf -> csrf.disable())
 
-                // Define which endpoints are public/protected
+                // Define public and protected endpoints
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/health",
                                 "/api/auth/register",
-                                "/api/auth/login"
+                                "/api/auth/login",
+                                "/error"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
