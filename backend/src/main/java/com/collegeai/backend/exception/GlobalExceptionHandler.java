@@ -1,5 +1,5 @@
 package com.collegeai.backend.exception;
-
+import com.collegeai.backend.exception.ResourceNotFoundException;
 import com.collegeai.backend.dto.ApiErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -67,6 +67,42 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
+                .body(response);
+    }
+
+    /**
+     * Handles requests for resources that do not exist.
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleResourceNotFound(
+            ResourceNotFoundException exception) {
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                false,
+                exception.getMessage(),
+                HttpStatus.NOT_FOUND.value()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(response);
+    }
+    /**
+     * Handles unexpected exceptions that are not handled by
+     * the more specific exception handlers.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
+            Exception exception) {
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                false,
+                "An unexpected error occurred. Please try again later.",
+                HttpStatus.INTERNAL_SERVER_ERROR.value()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(response);
     }
 }

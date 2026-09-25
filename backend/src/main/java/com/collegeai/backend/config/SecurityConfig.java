@@ -12,7 +12,8 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http) throws Exception {
 
         System.out.println(">>> SecurityConfig is loaded");
 
@@ -29,6 +30,11 @@ public class SecurityConfig {
                                 "/error"
                         ).permitAll()
                         .anyRequest().authenticated()
+                )
+
+                // Enable JWT Bearer token authentication
+                .oauth2ResourceServer(oauth2 ->
+                        oauth2.jwt(jwt -> {})
                 );
 
         return http.build();
