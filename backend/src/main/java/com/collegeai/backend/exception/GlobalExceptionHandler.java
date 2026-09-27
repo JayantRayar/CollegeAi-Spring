@@ -90,6 +90,9 @@ public class GlobalExceptionHandler {
     /**
      * Handles unexpected exceptions that are not handled by
      * the more specific exception handlers.
+     *
+     * Temporarily returns the real exception message
+     * so development errors can be diagnosed.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
