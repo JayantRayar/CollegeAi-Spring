@@ -4,6 +4,7 @@ import com.cloudinary.Cloudinary;
 import com.collegeai.backend.entity.Document;
 import com.collegeai.backend.repository.DocumentRepository;
 import com.collegeai.backend.service.CloudinaryService;
+import com.collegeai.backend.service.DocumentProcessingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +25,7 @@ public class AdminDocumentController {
 
     private final CloudinaryService cloudinaryService;
     private final DocumentRepository documentRepository;
-
+    private final DocumentProcessingService documentProcessingService;
     /**
      * Uploads a PDF to Cloudinary and stores its metadata in PostgreSQL.
      */
@@ -65,6 +66,37 @@ public class AdminDocumentController {
 
             return ResponseEntity.internalServerError()
                     .body("Failed to upload PDF to Cloudinary.");
+
+        }
+    }
+    /**
+     * Downloads a stored PDF from Cloudinary and extracts its text.
+     *
+     * Used to test the document processing pipeline.
+     */
+    @GetMapping("/{id}/process")
+    public ResponseEntity<?> processDocument(@PathVariable Long id) {
+
+        try {
+
+            // Find the document metadata from PostgreSQL.
+            Document document = documentRepository.findById(id)
+                    .orElseThrow(() ->
+                            new IllegalArgumentException(
+                                    "Document not found with id: " + id
+                            )
+                    );
+
+            // Download the PDF and extract its text.
+            String extractedText =
+                    documentProcessingService.processDocument(document);
+
+            return ResponseEntity.ok(extractedText);
+
+        } catch (Exception e) {
+
+            return ResponseEntity.internalServerError()
+                    .body("Failed to process document.");
 
         }
     }
