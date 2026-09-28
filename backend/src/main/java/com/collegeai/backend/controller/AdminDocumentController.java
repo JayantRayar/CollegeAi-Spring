@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -87,17 +88,16 @@ public class AdminDocumentController {
                             )
                     );
 
-            // Download the PDF and extract its text.
-            String extractedText =
+            // Download, extract, and split the PDF into chunks.
+            List<String> chunks =
                     documentProcessingService.processDocument(document);
 
-            return ResponseEntity.ok(extractedText);
+            return ResponseEntity.ok(chunks);
 
         } catch (Exception e) {
 
             return ResponseEntity.internalServerError()
                     .body("Failed to process document.");
-
         }
     }
 }
