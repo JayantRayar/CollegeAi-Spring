@@ -4,11 +4,13 @@ import com.collegeai.backend.entity.Document;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * Handles processing of uploaded documents.
  *
- * Downloads the PDF from Cloudinary and extracts
- * its readable text.
+ * Downloads the PDF from Cloudinary, extracts its text,
+ * and divides the extracted text into smaller chunks.
  */
 @Service
 @RequiredArgsConstructor
@@ -16,20 +18,28 @@ public class DocumentProcessingService {
 
     private final PdfDownloadService pdfDownloadService;
     private final PdfTextExtractionService pdfTextExtractionService;
+    private final DocumentChunkingService documentChunkingService;
 
     /**
-     * Downloads a document from Cloudinary and extracts its text.
+     * Downloads a document from Cloudinary,
+     * extracts its text, and creates text chunks.
      *
      * @param document uploaded document metadata
-     * @return extracted PDF text
+     * @return list of extracted text chunks
      */
-    public String processDocument(Document document) throws Exception {
+    public List<String> processDocument(Document document) throws Exception {
 
-        // Download the PDF from Cloudinary.
+        // 1. Download the PDF from Cloudinary.
         byte[] pdfBytes =
-                pdfDownloadService.downloadPdf(document.getSecureUrl());
+                pdfDownloadService.downloadPdf(
+                        document.getSecureUrl()
+                );
 
-        // Extract readable text from the PDF.
-        return pdfTextExtractionService.extractText(pdfBytes);
+        // 2. Extract readable text from the PDF.
+        String extractedText =
+                pdfTextExtractionService.extractText(pdfBytes);
+
+        // 3. Split the extracted text into smaller chunks.
+        return documentChunkingService.createChunks(extractedText);
     }
 }
