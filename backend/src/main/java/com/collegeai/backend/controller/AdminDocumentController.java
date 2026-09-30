@@ -1,6 +1,7 @@
 package com.collegeai.backend.controller;
 
 import com.cloudinary.Cloudinary;
+import com.collegeai.backend.dto.DocumentChunk;
 import com.collegeai.backend.entity.Document;
 import com.collegeai.backend.repository.DocumentRepository;
 import com.collegeai.backend.service.CloudinaryService;
@@ -89,8 +90,8 @@ public class AdminDocumentController {
                     );
 
             // Download, extract, and split the PDF into chunks.
-            List<String> chunks =
-                    documentProcessingService.processDocument(document);
+            List<DocumentChunk> chunks =
+                    documentProcessingService.processDocument(id);
 
             return ResponseEntity.ok(chunks);
 

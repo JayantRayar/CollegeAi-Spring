@@ -1,45 +1,40 @@
 package com.collegeai.backend.service;
 
+import com.collegeai.backend.dto.DocumentChunk;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Splits extracted document text into smaller chunks
- * using Spring AI's token-based text splitter.
- *
- * These chunks will later be converted into embeddings
- * and stored in ChromaDB for RAG retrieval.
- */
 @Service
 public class DocumentChunkingService {
 
-    /**
-     * Splits extracted text into token-based chunks.
-     *
-     * @param text extracted PDF text
-     * @return list of text chunks
-     */
-    public List<String> createChunks(String text) {
+    private final TokenTextSplitter splitter;
 
-        // Convert the extracted text into a Spring AI Document.
-        Document document = new Document(text);
+    public DocumentChunkingService() {
+        this.splitter = TokenTextSplitter.builder()
+                .withChunkSize(1000)
+                .build();
+    }
 
-        // Create a token-based text splitter.
-        TokenTextSplitter splitter =
-                TokenTextSplitter.builder()
-                        .withChunkSize(1000)
-                        .build();
+    public List<DocumentChunk> createChunks(
+            String pageText,
+            int pageNumber,
+            AtomicInteger chunkCounter
+    ) {
 
-        // Split the document into smaller documents.
-        List<Document> chunks =
-                splitter.apply(List.of(document));
+        Document document = new Document(pageText);
 
-        // Convert Spring AI Documents back into plain text.
+        List<Document> chunks = splitter.apply(List.of(document));
+
         return chunks.stream()
-                .map(Document::getText)
+                .map(chunk -> new DocumentChunk(
+                        chunk.getText(),
+                        pageNumber,
+                        chunkCounter.getAndIncrement()
+                ))
                 .toList();
     }
 }
