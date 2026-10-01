@@ -25,22 +25,27 @@ public class DocumentVectorStoreService {
     /**
      * Stores document chunks in the vector store.
      *
-     * Spring AI automatically generates embeddings
-     * using the configured EmbeddingModel before
-     * storing the documents in ChromaDB.
+     * Each Spring AI Document receives the deterministic
+     * ID generated during document chunking.
      */
     public void storeChunks(List<DocumentChunk> chunks) {
+
+        if (chunks.isEmpty()) {
+            return;
+        }
 
         List<Document> documents = chunks.stream()
                 .map(this::convertToVectorDocument)
                 .toList();
 
+        // Spring AI generates embeddings and stores
+        // the documents in ChromaDB.
         vectorStore.add(documents);
     }
 
     /**
-     * Converts our DocumentChunk object into
-     * Spring AI's Document object.
+     * Converts our application-level DocumentChunk
+     * into Spring AI's Document.
      */
     private Document convertToVectorDocument(
             DocumentChunk chunk) {
@@ -51,7 +56,12 @@ public class DocumentVectorStoreService {
         metadata.put("pageNumber", chunk.getPageNumber());
         metadata.put("chunkNumber", chunk.getChunkNumber());
 
+        /*
+         * Use the deterministic chunk ID as the
+         * identity of the vector document.
+         */
         return new Document(
+                chunk.getId(),
                 chunk.getText(),
                 metadata
         );

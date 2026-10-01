@@ -32,12 +32,25 @@ public class DocumentChunkingService {
         List<Document> chunks = splitter.apply(List.of(document));
 
         return chunks.stream()
-                .map(chunk -> new DocumentChunk(
-                        chunk.getText(),
-                        documentId,
-                        pageNumber,
-                        chunkCounter.getAndIncrement()
-                ))
+                .map(chunk -> {
+
+                    int chunkNumber =
+                            chunkCounter.getAndIncrement();
+
+                    // Create a deterministic ID for this chunk.
+                    String chunkId =
+                            "document-" + documentId
+                                    + "-page-" + pageNumber
+                                    + "-chunk-" + chunkNumber;
+
+                    return new DocumentChunk(
+                            chunkId,
+                            chunk.getText(),
+                            documentId,
+                            pageNumber,
+                            chunkNumber
+                    );
+                })
                 .toList();
     }
 }
