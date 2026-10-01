@@ -7,6 +7,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * Temporary controller used to verify
+ * semantic search from ChromaDB.
+ */
 @RestController
 public class VectorStoreTestController {
 
@@ -16,28 +20,16 @@ public class VectorStoreTestController {
         this.vectorStore = vectorStore;
     }
 
-    @GetMapping("/api/test/vector-store")
-    public String testVectorStore() {
-
-        Document document = new Document(
-                "BMS College of Engineering offers undergraduate and postgraduate courses."
-        );
-
-        document.getMetadata().put("documentId", "15");
-        document.getMetadata().put("page", "1");
-        document.getMetadata().put("category", "admissions");
-        document.getMetadata().put("chunkNumber", "1");
-
-        vectorStore.add(List.of(document));
-
-        return "Document added to ChromaDB successfully";
-    }
-
+    /**
+     * Tests semantic search using a real college-related question.
+     */
     @GetMapping("/api/test/vector-search")
     public List<Document> testVectorSearch() {
 
-        String query = "What courses does BMS College offer?";
+        String query = "What is the CSE management quota fee?";
 
+        // Spring AI converts the query into an embedding
+        // and searches ChromaDB for similar document chunks.
         return vectorStore.similaritySearch(query);
     }
 }

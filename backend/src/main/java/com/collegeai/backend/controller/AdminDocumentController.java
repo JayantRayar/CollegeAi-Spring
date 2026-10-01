@@ -1,6 +1,5 @@
 package com.collegeai.backend.controller;
 
-import com.cloudinary.Cloudinary;
 import com.collegeai.backend.dto.DocumentChunk;
 import com.collegeai.backend.entity.Document;
 import com.collegeai.backend.repository.DocumentRepository;
@@ -18,7 +17,7 @@ import java.util.Map;
 /**
  * Admin document module.
  *
- * Handles PDF uploads and stores document metadata.
+ * Handles PDF uploads and document processing.
  */
 @RestController
 @RequestMapping("/api/admin/documents")
@@ -28,6 +27,7 @@ public class AdminDocumentController {
     private final CloudinaryService cloudinaryService;
     private final DocumentRepository documentRepository;
     private final DocumentProcessingService documentProcessingService;
+
     /**
      * Uploads a PDF to Cloudinary and stores its metadata in PostgreSQL.
      */
@@ -60,7 +60,8 @@ public class AdminDocumentController {
             document.setFileSize(file.getSize());
 
             // 3. Save metadata in PostgreSQL.
-            Document savedDocument = documentRepository.save(document);
+            Document savedDocument =
+                    documentRepository.save(document);
 
             return ResponseEntity.ok(savedDocument);
 
@@ -68,11 +69,13 @@ public class AdminDocumentController {
 
             return ResponseEntity.internalServerError()
                     .body("Failed to upload PDF to Cloudinary.");
-
         }
     }
+
     /**
-     * Downloads a stored PDF from Cloudinary and extracts its text.
+     * Downloads a stored PDF from Cloudinary,
+     * extracts its text page-by-page,
+     * and splits the text into chunks.
      *
      * Used to test the document processing pipeline.
      */
@@ -81,15 +84,7 @@ public class AdminDocumentController {
 
         try {
 
-            // Find the document metadata from PostgreSQL.
-            Document document = documentRepository.findById(id)
-                    .orElseThrow(() ->
-                            new IllegalArgumentException(
-                                    "Document not found with id: " + id
-                            )
-                    );
-
-            // Download, extract, and split the PDF into chunks.
+            // Process the document using its database ID.
             List<DocumentChunk> chunks =
                     documentProcessingService.processDocument(id);
 

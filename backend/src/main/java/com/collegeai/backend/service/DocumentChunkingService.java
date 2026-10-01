@@ -14,6 +14,7 @@ public class DocumentChunkingService {
     private final TokenTextSplitter splitter;
 
     public DocumentChunkingService() {
+
         this.splitter = TokenTextSplitter.builder()
                 .withChunkSize(1000)
                 .build();
@@ -21,6 +22,7 @@ public class DocumentChunkingService {
 
     public List<DocumentChunk> createChunks(
             String pageText,
+            Long documentId,
             int pageNumber,
             AtomicInteger chunkCounter
     ) {
@@ -32,6 +34,7 @@ public class DocumentChunkingService {
         return chunks.stream()
                 .map(chunk -> new DocumentChunk(
                         chunk.getText(),
+                        documentId,
                         pageNumber,
                         chunkCounter.getAndIncrement()
                 ))

@@ -9,6 +9,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Handles the complete document processing pipeline.
+ *
+ * PDF:
+ * Cloudinary
+ *     ↓
+ * PDF extraction
+ *     ↓
+ * Page-based text
+ *     ↓
+ * Text chunks
+ *     ↓
+ * Vector store
+ */
 @Service
 public class DocumentProcessingService {
 
@@ -16,22 +30,33 @@ public class DocumentProcessingService {
     private final PdfDownloadService pdfDownloadService;
     private final PdfTextExtractionService pdfTextExtractionService;
     private final DocumentChunkingService documentChunkingService;
+    private final DocumentVectorStoreService documentVectorStoreService;
 
     public DocumentProcessingService(
             DocumentRepository documentRepository,
             PdfDownloadService pdfDownloadService,
             PdfTextExtractionService pdfTextExtractionService,
-            DocumentChunkingService documentChunkingService
+            DocumentChunkingService documentChunkingService,
+            DocumentVectorStoreService documentVectorStoreService
     ) {
         this.documentRepository = documentRepository;
         this.pdfDownloadService = pdfDownloadService;
         this.pdfTextExtractionService = pdfTextExtractionService;
         this.documentChunkingService = documentChunkingService;
+        this.documentVectorStoreService = documentVectorStoreService;
     }
 
-    public List<DocumentChunk> processDocument(Long documentId) throws Exception {
+    /**
+     * Processes a document and stores its chunks
+     * in the configured vector store.
+     *
+     * @param documentId PostgreSQL document ID
+     * @return list of generated document chunks
+     */
+    public List<DocumentChunk> processDocument(Long documentId)
+            throws Exception {
 
-        // Find document metadata from PostgreSQL
+        // 1. Find document metadata from PostgreSQL.
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() ->
                         new RuntimeException(
@@ -39,36 +64,45 @@ public class DocumentProcessingService {
                         )
                 );
 
-        // Download the PDF from Cloudinary
+        // 2. Download the PDF from Cloudinary.
         byte[] pdfBytes =
-                pdfDownloadService.downloadPdf(document.getSecureUrl());
+                pdfDownloadService.downloadPdf(
+                        document.getSecureUrl()
+                );
 
-        // Extract text page-by-page
+        // 3. Extract text page-by-page.
         List<String> pages =
                 pdfTextExtractionService.extractPages(pdfBytes);
 
-        // Store all chunks from all pages
+        // 4. Create chunks from all pages.
         List<DocumentChunk> chunks = new ArrayList<>();
 
-        // Keep one counter for the entire document
-        AtomicInteger chunkCounter = new AtomicInteger(1);
+        // Keep one counter for the entire document.
+        AtomicInteger chunkCounter =
+                new AtomicInteger(1);
 
-        // Process each PDF page separately
+        // Process each page separately.
         for (int pageNumber = 1;
              pageNumber <= pages.size();
              pageNumber++) {
 
-            String pageText = pages.get(pageNumber - 1);
+            String pageText =
+                    pages.get(pageNumber - 1);
 
             chunks.addAll(
                     documentChunkingService.createChunks(
                             pageText,
+                            documentId,
                             pageNumber,
                             chunkCounter
                     )
             );
         }
 
+        // 5. Generate embeddings and store chunks in ChromaDB.
+        documentVectorStoreService.storeChunks(chunks);
+
+        // 6. Return chunks so we can verify the processing result.
         return chunks;
     }
 }

@@ -8,6 +8,7 @@ import lombok.Getter;
 public class DocumentChunk {
 
     private final String text;
+    private final Long documentId;
     private final int pageNumber;
     private final int chunkNumber;
 }
