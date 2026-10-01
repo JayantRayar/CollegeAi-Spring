@@ -40,6 +40,7 @@ public class SecurityConfig {
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/test/embedding",
+                                "/api/rag/search",
                                 "/error"
                         ).permitAll()
 
