@@ -46,17 +46,10 @@ public class DocumentProcessingService {
         this.documentVectorStoreService = documentVectorStoreService;
     }
 
-    /**
-     * Processes a document and stores its chunks
-     * in the configured vector store.
-     *
-     * @param documentId PostgreSQL document ID
-     * @return list of generated document chunks
-     */
     public List<DocumentChunk> processDocument(Long documentId)
             throws Exception {
 
-        // 1. Find document metadata from PostgreSQL.
+        // Find document metadata from PostgreSQL.
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() ->
                         new RuntimeException(
@@ -64,30 +57,27 @@ public class DocumentProcessingService {
                         )
                 );
 
-        // 2. Download the PDF from Cloudinary.
+        // Download the original PDF from Cloudinary.
         byte[] pdfBytes =
                 pdfDownloadService.downloadPdf(
                         document.getSecureUrl()
                 );
 
-        // 3. Extract text page-by-page.
-        List<String> pages =
+        // Extract text while preserving actual PDF page numbers.
+        List<PdfTextExtractionService.ExtractedPage> pages =
                 pdfTextExtractionService.extractPages(pdfBytes);
 
-        // 4. Create chunks from all pages.
         List<DocumentChunk> chunks = new ArrayList<>();
 
-        // Keep one counter for the entire document.
+        // Gives every chunk a unique number within this processing run.
         AtomicInteger chunkCounter =
                 new AtomicInteger(1);
 
-        // Process each page separately.
-        for (int pageNumber = 1;
-             pageNumber <= pages.size();
-             pageNumber++) {
+        for (PdfTextExtractionService.ExtractedPage page : pages) {
 
-            String pageText =
-                    pages.get(pageNumber - 1);
+            int pageNumber = page.getPageNumber();
+
+            String pageText = page.getText();
 
             chunks.addAll(
                     documentChunkingService.createChunks(
@@ -99,10 +89,9 @@ public class DocumentProcessingService {
             );
         }
 
-        // 5. Generate embeddings and store chunks in ChromaDB.
+        // Store chunks and their embeddings in ChromaDB.
         documentVectorStoreService.storeChunks(chunks);
 
-        // 6. Return chunks so we can verify the processing result.
         return chunks;
     }
 }
