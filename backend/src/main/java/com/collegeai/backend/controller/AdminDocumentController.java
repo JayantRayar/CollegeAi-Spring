@@ -1,6 +1,8 @@
 package com.collegeai.backend.controller;
 
 import com.collegeai.backend.dto.DocumentChunk;
+import com.collegeai.backend.dto.DocumentProcessingResponse;
+import com.collegeai.backend.dto.DocumentResponse;
 import com.collegeai.backend.entity.Document;
 import com.collegeai.backend.repository.DocumentRepository;
 import com.collegeai.backend.service.CloudinaryService;
@@ -17,7 +19,10 @@ import java.util.Map;
 /**
  * Admin document module.
  *
- * Handles PDF uploads and document processing.
+ * Handles:
+ * - PDF upload
+ * - Document processing and vector indexing
+ * - Document deletion
  */
 @RestController
 @RequestMapping("/api/admin/documents")
@@ -29,7 +34,8 @@ public class AdminDocumentController {
     private final DocumentProcessingService documentProcessingService;
 
     /**
-     * Uploads a PDF to Cloudinary and stores its metadata in PostgreSQL.
+     * Uploads a PDF to Cloudinary and stores
+     * its metadata in PostgreSQL.
      */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadDocument(
@@ -47,23 +53,37 @@ public class AdminDocumentController {
 
         try {
 
-            // 1. Upload PDF to Cloudinary.
-            Map uploadResult = cloudinaryService.uploadFile(file);
+            Map uploadResult =
+                    cloudinaryService.uploadFile(file);
 
-            // 2. Create document metadata object.
             Document document = new Document();
 
-            document.setOriginalFilename(file.getOriginalFilename());
-            document.setPublicId((String) uploadResult.get("public_id"));
-            document.setSecureUrl((String) uploadResult.get("secure_url"));
-            document.setResourceType((String) uploadResult.get("resource_type"));
-            document.setFileSize(file.getSize());
+            document.setOriginalFilename(
+                    file.getOriginalFilename()
+            );
 
-            // 3. Save metadata in PostgreSQL.
+            document.setPublicId(
+                    (String) uploadResult.get("public_id")
+            );
+
+            document.setSecureUrl(
+                    (String) uploadResult.get("secure_url")
+            );
+
+            document.setResourceType(
+                    (String) uploadResult.get("resource_type")
+            );
+
+            document.setFileSize(
+                    file.getSize()
+            );
+
             Document savedDocument =
                     documentRepository.save(document);
 
-            return ResponseEntity.ok(savedDocument);
+            return ResponseEntity.ok(
+                    DocumentResponse.from(savedDocument)
+            );
 
         } catch (IOException e) {
 
@@ -73,27 +93,95 @@ public class AdminDocumentController {
     }
 
     /**
-     * Downloads a stored PDF from Cloudinary,
-     * extracts its text page-by-page,
-     * and splits the text into chunks.
+     * Processes and indexes a document.
      *
-     * Used to test the document processing pipeline.
+     * The document is:
+     * Cloudinary
+     *      ↓
+     * PDF download
+     *      ↓
+     * Text extraction
+     *      ↓
+     * Chunking
+     *      ↓
+     * Old vectors removed
+     *      ↓
+     * New vectors stored in ChromaDB
+     *
+     * Re-processing the same document removes its
+     * previous vectors before storing fresh ones.
+     *
+     * The API returns only a small stable response DTO
+     * instead of exposing the complete chunk contents.
      */
-    @GetMapping("/{id}/process")
-    public ResponseEntity<?> processDocument(@PathVariable Long id) {
+    @PostMapping("/{id}/process")
+    public ResponseEntity<?> processDocument(
+            @PathVariable Long id) {
 
         try {
 
-            // Process the document using its database ID.
             List<DocumentChunk> chunks =
                     documentProcessingService.processDocument(id);
 
-            return ResponseEntity.ok(chunks);
+            String documentName =
+                    chunks.isEmpty()
+                            ? null
+                            : chunks.get(0).getDocumentName();
+
+            DocumentProcessingResponse response =
+                    new DocumentProcessingResponse(
+                            id,
+                            documentName,
+                            "PROCESSED",
+                            chunks.size()
+                    );
+
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
 
+            e.printStackTrace();
+
             return ResponseEntity.internalServerError()
                     .body("Failed to process document.");
+        }
+    }
+
+    /**
+     * Deletes a document and its vector data.
+     *
+     * The service removes:
+     * 1. ChromaDB vectors
+     * 2. PostgreSQL document metadata
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteDocument(
+            @PathVariable Long id) {
+
+        try {
+
+            documentProcessingService.deleteDocument(id);
+
+            return ResponseEntity.ok(
+                    Map.of(
+                            "message",
+                            "Document deleted successfully.",
+                            "documentId",
+                            id
+                    )
+            );
+
+        } catch (RuntimeException e) {
+
+            return ResponseEntity.notFound()
+                    .build();
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            return ResponseEntity.internalServerError()
+                    .body("Failed to delete document.");
         }
     }
 }

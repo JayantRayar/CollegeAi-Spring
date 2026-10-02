@@ -19,6 +19,12 @@ public class DocumentChunk {
 
     private final Long documentId;
 
+    /**
+     * Original PDF filename.
+     * Used later for source/citation information.
+     */
+    private final String documentName;
+
     private final int pageNumber;
 
     private final int chunkNumber;

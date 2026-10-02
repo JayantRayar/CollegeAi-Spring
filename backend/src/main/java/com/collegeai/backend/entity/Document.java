@@ -11,8 +11,8 @@ import java.time.LocalDateTime;
  * Stores metadata about documents uploaded by an admin.
  *
  * The actual PDF is stored in Cloudinary.
- * PostgreSQL stores information needed to identify
- * and process that document later.
+ * PostgreSQL stores information needed to identify,
+ * process, and track the state of that document.
  */
 @Entity
 @Table(name = "documents")
@@ -55,6 +55,18 @@ public class Document {
      */
     @Column(nullable = false)
     private Long fileSize;
+
+    /**
+     * Current processing state of the document.
+     *
+     * UPLOADED   -> PDF is stored but not processed yet.
+     * PROCESSING -> PDF is currently being processed.
+     * PROCESSED  -> Processing and vector indexing completed.
+     * FAILED     -> Processing failed.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private DocumentStatus status = DocumentStatus.UPLOADED;
 
     /**
      * Time when the document was uploaded.
