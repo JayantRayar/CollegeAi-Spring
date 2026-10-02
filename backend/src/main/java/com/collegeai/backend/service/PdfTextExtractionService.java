@@ -13,6 +13,11 @@ import java.util.List;
 /**
  * Extracts text from a PDF while preserving
  * the original PDF page number.
+ *
+ * Text is extracted according to its visual position
+ * on the page so that structured content such as
+ * tables has a better chance of maintaining its
+ * original reading order.
  */
 @Service
 public class PdfTextExtractionService {
@@ -20,8 +25,9 @@ public class PdfTextExtractionService {
     /**
      * Extracts text from every non-empty PDF page.
      *
-     * The original page number is preserved so that
-     * later RAG citations point to the correct PDF page.
+     * @param pdfBytes PDF file contents
+     * @return extracted text grouped by original PDF page
+     * @throws IOException if the PDF cannot be read
      */
     public List<ExtractedPage> extractPages(byte[] pdfBytes)
             throws IOException {
@@ -31,9 +37,36 @@ public class PdfTextExtractionService {
             PDFTextStripper textStripper =
                     new PDFTextStripper();
 
+            /*
+             * Extract text according to its position
+             * on the PDF page.
+             *
+             * This is particularly useful for documents
+             * containing tables, columns, and structured
+             * layouts.
+             */
+            textStripper.setSortByPosition(true);
+
+            /*
+             * Keep words separated when PDF text
+             * extraction encounters separate text blocks.
+             */
+            textStripper.setWordSeparator(" ");
+
+            /*
+             * Keep each extracted line separated.
+             */
+            textStripper.setLineSeparator("\n");
+
             List<ExtractedPage> pages =
                     new ArrayList<>();
 
+            /*
+             * Process every original PDF page.
+             *
+             * We deliberately keep the original page number
+             * even when a page contains no extractable text.
+             */
             for (int pageNumber = 1;
                  pageNumber <= document.getNumberOfPages();
                  pageNumber++) {
@@ -44,7 +77,11 @@ public class PdfTextExtractionService {
                 String pageText =
                         textStripper.getText(document);
 
-                if (pageText != null && !pageText.isBlank()) {
+                /*
+                 * Ignore completely empty pages.
+                 */
+                if (pageText != null
+                        && !pageText.isBlank()) {
 
                     pages.add(
                             new ExtractedPage(
@@ -60,17 +97,14 @@ public class PdfTextExtractionService {
     }
 
     /**
-     * Represents text extracted from one PDF page.
-     *
-     * pageNumber = actual page number in the PDF.
-     * text = extracted text from that page.
+     * Represents text extracted from one original
+     * PDF page.
      */
     @Getter
     @AllArgsConstructor
     public static class ExtractedPage {
 
         private final int pageNumber;
-
         private final String text;
     }
 }

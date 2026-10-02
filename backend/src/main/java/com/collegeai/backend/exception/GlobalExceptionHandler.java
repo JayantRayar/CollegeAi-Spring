@@ -98,6 +98,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
             Exception exception) {
 
+        // Log the complete exception so the real cause
+        // can be diagnosed during development.
+        exception.printStackTrace();
+
         ApiErrorResponse response = new ApiErrorResponse(
                 false,
                 "An unexpected error occurred. Please try again later.",

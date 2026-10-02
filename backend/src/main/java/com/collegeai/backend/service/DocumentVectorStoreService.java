@@ -2,8 +2,16 @@ package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.DocumentChunk;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.filter.Filter;
+import org.springframework.ai.vectorstore.filter.Filter.Expression;
+import org.springframework.ai.vectorstore.filter.Filter.ExpressionType;
+import org.springframework.ai.vectorstore.filter.Filter.Key;
+import org.springframework.ai.vectorstore.filter.Filter.Value;
 
 import java.util.HashMap;
 import java.util.List;
@@ -22,12 +30,6 @@ public class DocumentVectorStoreService {
         this.vectorStore = vectorStore;
     }
 
-    /**
-     * Stores document chunks in the vector store.
-     *
-     * Each Spring AI Document receives the deterministic
-     * ID generated during document chunking.
-     */
     public void storeChunks(List<DocumentChunk> chunks) {
 
         if (chunks.isEmpty()) {
@@ -38,28 +40,57 @@ public class DocumentVectorStoreService {
                 .map(this::convertToVectorDocument)
                 .toList();
 
-        // Spring AI generates embeddings and stores
-        // the documents in ChromaDB.
         vectorStore.add(documents);
+
+
     }
 
-    /**
-     * Converts our application-level DocumentChunk
-     * into Spring AI's Document.
-     */
+    public void deleteChunks(List<String> chunkIds) {
+
+        if (chunkIds.isEmpty()) {
+            return;
+        }
+
+        vectorStore.delete(chunkIds);
+    }
+
+    public void deleteDocumentChunks(Long documentId) {
+
+        Filter.Expression filterExpression =
+                new Filter.Expression(
+                        Filter.ExpressionType.EQ,
+                        new Filter.Key("documentId"),
+                        new Filter.Value(documentId)
+                );
+
+        vectorStore.delete(filterExpression);
+    }
+
     private Document convertToVectorDocument(
             DocumentChunk chunk) {
 
         Map<String, Object> metadata = new HashMap<>();
 
-        metadata.put("documentId", chunk.getDocumentId());
-        metadata.put("pageNumber", chunk.getPageNumber());
-        metadata.put("chunkNumber", chunk.getChunkNumber());
+        metadata.put(
+                "documentId",
+                chunk.getDocumentId()
+        );
 
-        /*
-         * Use the deterministic chunk ID as the
-         * identity of the vector document.
-         */
+        metadata.put(
+                "documentName",
+                chunk.getDocumentName()
+        );
+
+        metadata.put(
+                "pageNumber",
+                chunk.getPageNumber()
+        );
+
+        metadata.put(
+                "chunkNumber",
+                chunk.getChunkNumber()
+        );
+
         return new Document(
                 chunk.getId(),
                 chunk.getText(),

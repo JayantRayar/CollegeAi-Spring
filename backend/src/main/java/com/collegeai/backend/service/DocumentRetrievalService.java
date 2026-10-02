@@ -2,47 +2,48 @@ package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.RetrievedChunk;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/**
- * Handles semantic retrieval from the vector store.
- *
- * This service keeps Spring AI / ChromaDB details
- * away from the REST API layer.
- */
 @Service
 public class DocumentRetrievalService {
 
     private final VectorStore vectorStore;
 
-    public DocumentRetrievalService(VectorStore vectorStore) {
+    private final int topK;
+    private final double similarityThreshold;
+
+    public DocumentRetrievalService(
+            VectorStore vectorStore,
+            @Value("${rag.retrieval.top-k:5}") int topK,
+            @Value("${rag.retrieval.similarity-threshold:0.50}") double similarityThreshold
+    ) {
         this.vectorStore = vectorStore;
+        this.topK = topK;
+        this.similarityThreshold = similarityThreshold;
     }
 
-    /**
-     * Searches the vector store for chunks related
-     * to the user's question.
-     *
-     * @param query user's question
-     * @return relevant document chunks
-     */
     public List<RetrievedChunk> search(String query) {
 
+        SearchRequest searchRequest =
+                SearchRequest.builder()
+                        .query(query)
+                        .topK(topK)
+                        .similarityThreshold(similarityThreshold)
+                        .build();
+
         List<Document> documents =
-                vectorStore.similaritySearch(query);
+                vectorStore.similaritySearch(searchRequest);
 
         return documents.stream()
                 .map(this::convertToRetrievedChunk)
                 .toList();
     }
 
-    /**
-     * Converts Spring AI's Document into our
-     * application-level DTO.
-     */
     private RetrievedChunk convertToRetrievedChunk(
             Document document) {
 
@@ -50,6 +51,10 @@ public class DocumentRetrievalService {
                 ((Number) document.getMetadata()
                         .get("documentId"))
                         .longValue();
+
+        String documentName =
+                (String) document.getMetadata()
+                        .get("documentName");
 
         Integer pageNumber =
                 ((Number) document.getMetadata()
@@ -66,6 +71,7 @@ public class DocumentRetrievalService {
         return new RetrievedChunk(
                 document.getText(),
                 documentId,
+                documentName,
                 pageNumber,
                 chunkNumber,
                 score

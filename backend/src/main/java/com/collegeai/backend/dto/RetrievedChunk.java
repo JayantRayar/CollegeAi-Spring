@@ -17,6 +17,8 @@ public class RetrievedChunk {
 
     private Long documentId;
 
+    private String documentName;
+
     private Integer pageNumber;
 
     private Integer chunkNumber;
