@@ -3,14 +3,14 @@ package com.collegeai.backend.dto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-/**
- * Standard response structure used when an API request fails.
- */
+import java.time.LocalDateTime;
+
 @Getter
 @AllArgsConstructor
 public class ApiErrorResponse {
 
-    private final boolean success;
-    private final String message;
-    private final int status;
+    private LocalDateTime timestamp;
+    private int status;
+    private String message;
+    private String path;
 }
