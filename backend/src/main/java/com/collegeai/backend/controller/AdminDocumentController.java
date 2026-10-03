@@ -158,30 +158,15 @@ public class AdminDocumentController {
     public ResponseEntity<?> deleteDocument(
             @PathVariable Long id) {
 
-        try {
+        documentProcessingService.deleteDocument(id);
 
-            documentProcessingService.deleteDocument(id);
-
-            return ResponseEntity.ok(
-                    Map.of(
-                            "message",
-                            "Document deleted successfully.",
-                            "documentId",
-                            id
-                    )
-            );
-
-        } catch (RuntimeException e) {
-
-            return ResponseEntity.notFound()
-                    .build();
-
-        } catch (Exception e) {
-
-            e.printStackTrace();
-
-            return ResponseEntity.internalServerError()
-                    .body("Failed to delete document.");
-        }
+        return ResponseEntity.ok(
+                Map.of(
+                        "message",
+                        "Document deleted successfully.",
+                        "documentId",
+                        id
+                )
+        );
     }
 }
