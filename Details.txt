@@ -206,3 +206,16 @@ jwt secret key : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIi
 | Application backend       | Spring Boot        |
 | Metadata                  | PostgreSQL         |
 | Authentication            | JWT + Google OAuth |
+
+
+User question
+     ↓
+Search college PDF first
+     ↓
+Relevant information?
+   ↙             ↘
+ YES             NO
+  ↓               ↓
+Gemini + PDF    Gemini general
+  ↓               ↓
+College answer  General answer

@@ -10,5 +10,8 @@ import java.util.List;
 public class ChatResponse {
 
     private String answer;
+
+    private String answerType;
+
     private List<ChatSource> sources;
 }
