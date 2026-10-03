@@ -3,6 +3,7 @@ package com.collegeai.backend.service;
 import com.collegeai.backend.dto.DocumentChunk;
 import com.collegeai.backend.entity.Document;
 import com.collegeai.backend.entity.DocumentStatus;
+import com.collegeai.backend.exception.DocumentNotFoundException;
 import com.collegeai.backend.repository.DocumentRepository;
 import org.springframework.stereotype.Service;
 
@@ -185,7 +186,7 @@ public class DocumentProcessingService {
         Document document =
                 documentRepository.findById(documentId)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new DocumentNotFoundException(
                                         "Document not found with id: "
                                                 + documentId
                                 )
