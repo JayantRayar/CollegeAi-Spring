@@ -1,9 +1,12 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+
 import OAuthSuccess from "./pages/OAuthSuccess";
 
 function App() {
+
     return (
         <BrowserRouter>
+
             <Routes>
 
                 {/* Home page */}
@@ -19,8 +22,10 @@ function App() {
                 />
 
             </Routes>
+
         </BrowserRouter>
     );
 }
 
 export default App;
+
