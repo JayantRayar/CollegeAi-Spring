@@ -1,6 +1,7 @@
 package com.collegeai.backend.controller;
 
 import com.collegeai.backend.dto.DocumentChunk;
+import com.collegeai.backend.dto.DocumentDeleteResponse;
 import com.collegeai.backend.dto.DocumentProcessingResponse;
 import com.collegeai.backend.dto.DocumentResponse;
 import com.collegeai.backend.entity.Document;
@@ -74,7 +75,7 @@ public class AdminDocumentController {
 
     @PostMapping("/{id}/process")
     public ResponseEntity<DocumentProcessingResponse> processDocument(
-            @PathVariable Long id) throws Exception {
+            @PathVariable Long id) {
 
         List<DocumentChunk> chunks =
                 documentProcessingService.processDocument(id);
@@ -96,18 +97,17 @@ public class AdminDocumentController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteDocument(
+    public ResponseEntity<DocumentDeleteResponse> deleteDocument(
             @PathVariable Long id) {
 
         documentProcessingService.deleteDocument(id);
 
-        return ResponseEntity.ok(
-                Map.of(
-                        "message",
+        DocumentDeleteResponse response =
+                new DocumentDeleteResponse(
                         "Document deleted successfully.",
-                        "documentId",
                         id
-                )
-        );
+                );
+
+        return ResponseEntity.ok(response);
     }
 }

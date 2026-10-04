@@ -30,6 +30,24 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    @ExceptionHandler(DocumentProcessingException.class)
+    public ResponseEntity<ApiErrorResponse> handleDocumentProcessingException(
+            DocumentProcessingException exception,
+            HttpServletRequest request) {
+
+        ApiErrorResponse response =
+                new ApiErrorResponse(
+                        LocalDateTime.now(),
+                        HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                        exception.getMessage(),
+                        request.getRequestURI()
+                );
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(response);
+    }
+
     @ExceptionHandler(DocumentUploadException.class)
     public ResponseEntity<ApiErrorResponse> handleDocumentUploadException(
             DocumentUploadException exception,

@@ -4,6 +4,7 @@ import com.collegeai.backend.dto.DocumentChunk;
 import com.collegeai.backend.entity.Document;
 import com.collegeai.backend.entity.DocumentStatus;
 import com.collegeai.backend.exception.DocumentNotFoundException;
+import com.collegeai.backend.exception.DocumentProcessingException;
 import com.collegeai.backend.repository.DocumentRepository;
 import org.springframework.stereotype.Service;
 
@@ -73,34 +74,27 @@ public class DocumentProcessingService {
      *     ↓
      * FAILED
      */
-    public List<DocumentChunk> processDocument(Long documentId)
-            throws Exception {
+    public List<DocumentChunk> processDocument(Long documentId) {
 
         Document document =
                 documentRepository.findById(documentId)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new DocumentNotFoundException(
                                         "Document not found with id: "
                                                 + documentId
                                 )
                         );
 
-        /*
-         * Mark the document as currently being processed.
-         */
         document.setStatus(DocumentStatus.PROCESSING);
         documentRepository.save(document);
 
         try {
 
-            // Download the original PDF from Cloudinary.
             byte[] pdfBytes =
                     pdfDownloadService.downloadPdf(
                             document.getSecureUrl()
                     );
 
-            // Extract text page by page while preserving
-            // the original PDF page numbers.
             List<PdfTextExtractionService.ExtractedPage> pages =
                     pdfTextExtractionService.extractPages(pdfBytes);
 
@@ -115,7 +109,6 @@ public class DocumentProcessingService {
             String documentName =
                     document.getOriginalFilename();
 
-            // Process every extracted page.
             for (PdfTextExtractionService.ExtractedPage page : pages) {
 
                 int pageNumber =
@@ -135,26 +128,17 @@ public class DocumentProcessingService {
                         )
                 );
 
-                // Keep the current page so that its ending
-                // can be used as context for the next page.
                 previousPageText = pageText;
             }
 
-            /*
-             * Remove previously indexed vectors belonging
-             * to this document before storing the new ones.
-             *
-             * This prevents duplicate/stale vectors when
-             * the same document is processed again.
-             */
-            documentVectorStoreService.deleteDocumentChunks(documentId);
+            documentVectorStoreService.deleteDocumentChunks(
+                    documentId
+            );
 
-            // Store the freshly generated chunks and embeddings.
-            documentVectorStoreService.storeChunks(chunks);
+            documentVectorStoreService.storeChunks(
+                    chunks
+            );
 
-            /*
-             * Processing and vector indexing completed successfully.
-             */
             document.setStatus(DocumentStatus.PROCESSED);
             documentRepository.save(document);
 
@@ -162,18 +146,15 @@ public class DocumentProcessingService {
 
         } catch (Exception e) {
 
-            /*
-             * Something went wrong during processing.
-             * Mark the document as FAILED before passing
-             * the original exception back to the controller.
-             */
             document.setStatus(DocumentStatus.FAILED);
             documentRepository.save(document);
 
-            throw e;
+            throw new DocumentProcessingException(
+                    "Failed to process document.",
+                    e
+            );
         }
     }
-
     /**
      * Deletes a document and all of its vector data.
      *
