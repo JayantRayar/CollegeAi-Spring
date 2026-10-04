@@ -34,6 +34,7 @@ public class SecurityConfig {
                                 "/api/health",
                                 "/api/auth/register",
                                 "/api/auth/login",
+                                "/api/auth/oauth/exchange",
                                 "/api/test/embedding",
                                 "/api/rag/search",
                                 "/error"

@@ -1,12 +1,14 @@
+
 package com.collegeai.backend.security;
 
 import com.collegeai.backend.entity.User;
 import com.collegeai.backend.repository.UserRepository;
-import com.collegeai.backend.service.JwtService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
@@ -20,16 +22,23 @@ import java.io.IOException;
  * After Google authentication succeeds:
  * 1. Gets the authenticated Google user.
  * 2. Finds the corresponding local user from PostgreSQL.
- * 3. Generates our application's JWT.
- * 4. Redirects the user back to the React frontend.
+ * 3. Creates a short-lived, one-time authorization code.
+ * 4. Redirects the user back to the React frontend with the code.
+ *
+ * The JWT is NOT placed in the URL.
  */
 @Component
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler
         extends SimpleUrlAuthenticationSuccessHandler {
 
+    private static final Logger logger =
+            LoggerFactory.getLogger(OAuth2SuccessHandler.class);
+
     private final UserRepository userRepository;
-    private final JwtService jwtService;
+
+    private final OAuth2AuthorizationCodeService
+            authorizationCodeService;
 
     @Override
     public void onAuthenticationSuccess(
@@ -39,28 +48,42 @@ public class OAuth2SuccessHandler
             throws IOException, ServletException {
 
         // Get the authenticated Google/OIDC user.
-        OidcUser oidcUser = (OidcUser) authentication.getPrincipal();
+        OidcUser oidcUser =
+                (OidcUser) authentication.getPrincipal();
 
-        // Google provides the user's email.
-        String email = oidcUser.getAttribute("email");
+        // Get the email provided by Google.
+        String email =
+                oidcUser.getAttribute("email");
 
-        // Find the user that OAuthUserService created/saved.
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new IllegalStateException(
-                                "OAuth user was not found in database"
-                        )
+        // Find the corresponding local user in PostgreSQL.
+        User user =
+                userRepository.findByEmail(email)
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "OAuth user was not found in database"
+                                )
+                        );
+
+        // Create a short-lived, one-time authorization code.
+        String code =
+                authorizationCodeService.createCode(
+                        user.getEmail()
                 );
 
-        // Generate our application's JWT.
-        String token = jwtService.generateToken(
-                user.getEmail(),
-                user.getRole()
+        // Log the successful OAuth authentication.
+        // Never log the authorization code or JWT.
+        logger.info(
+                "Google OAuth authentication successful for user: {}",
+                user.getEmail()
         );
 
-        // Redirect to React after successful login.
+        // Redirect the browser back to React.
+        //
+        // Only the temporary authorization code is placed
+        // in the URL. The JWT is NOT placed in the URL.
         String frontendUrl =
-                "http://localhost:5173/oauth-success?token=" + token;
+                "http://localhost:5173/oauth-success?code="
+                        + code;
 
         getRedirectStrategy().sendRedirect(
                 request,
@@ -69,3 +92,4 @@ public class OAuth2SuccessHandler
         );
     }
 }
+
