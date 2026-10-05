@@ -6,6 +6,8 @@ import com.collegeai.backend.dto.LoginResult;
 import com.collegeai.backend.dto.RegisterRequest;
 import com.collegeai.backend.dto.UserResponse;
 import com.collegeai.backend.service.AuthService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,9 +30,6 @@ public class AuthController {
 
     private final AuthService authService;
 
-    /**
-     * Registers a new user.
-     */
     @PostMapping("/register")
     public ResponseEntity<UserResponse> register(
             @Valid @RequestBody RegisterRequest request) {
@@ -43,12 +42,6 @@ public class AuthController {
                 .body(response);
     }
 
-    /**
-     * Authenticates an existing user.
-     *
-     * Access token is returned in the JSON response.
-     * Refresh token is stored in an HttpOnly cookie.
-     */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
@@ -57,11 +50,83 @@ public class AuthController {
         LoginResult loginResult =
                 authService.login(request);
 
+        addRefreshTokenCookie(
+                response,
+                loginResult.getRefreshToken()
+        );
+
+        return ResponseEntity.ok(
+                loginResult.getLoginResponse()
+        );
+    }
+
+    /**
+     * Generates a new access token using the
+     * refresh token stored in the HttpOnly cookie.
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponse> refresh(
+            HttpServletRequest request,
+            HttpServletResponse response) {
+
+        String refreshToken =
+                extractRefreshToken(request);
+
+        LoginResult loginResult =
+                authService.refreshAccessToken(
+                        refreshToken
+                );
+
+        addRefreshTokenCookie(
+                response,
+                loginResult.getRefreshToken()
+        );
+
+        return ResponseEntity.ok(
+                loginResult.getLoginResponse()
+        );
+    }
+
+    /**
+     * Extracts the refresh token from the browser cookie.
+     */
+    private String extractRefreshToken(
+            HttpServletRequest request) {
+
+        Cookie[] cookies = request.getCookies();
+
+        if (cookies == null) {
+            throw new RuntimeException(
+                    "Refresh token cookie is missing"
+            );
+        }
+
+        for (Cookie cookie : cookies) {
+
+            if ("refresh_token".equals(
+                    cookie.getName())) {
+
+                return cookie.getValue();
+            }
+        }
+
+        throw new RuntimeException(
+                "Refresh token cookie is missing"
+        );
+    }
+
+    /**
+     * Creates the secure HttpOnly refresh-token cookie.
+     */
+    private void addRefreshTokenCookie(
+            HttpServletResponse response,
+            String refreshToken) {
+
         ResponseCookie refreshTokenCookie =
                 ResponseCookie
                         .from(
                                 "refresh_token",
-                                loginResult.getRefreshToken()
+                                refreshToken
                         )
                         .httpOnly(true)
                         .secure(false)
@@ -75,10 +140,6 @@ public class AuthController {
         response.addHeader(
                 HttpHeaders.SET_COOKIE,
                 refreshTokenCookie.toString()
-        );
-
-        return ResponseEntity.ok(
-                loginResult.getLoginResponse()
         );
     }
 }

@@ -5,6 +5,7 @@ import com.collegeai.backend.dto.LoginResponse;
 import com.collegeai.backend.dto.LoginResult;
 import com.collegeai.backend.dto.RegisterRequest;
 import com.collegeai.backend.dto.UserResponse;
+import com.collegeai.backend.entity.RefreshToken;
 import com.collegeai.backend.entity.User;
 import com.collegeai.backend.exception.EmailAlreadyExistsException;
 import com.collegeai.backend.exception.InvalidCredentialsException;
@@ -59,6 +60,7 @@ public class AuthService {
                 savedUser.getRole()
         );
     }
+
 
     /**
      * Authenticates an existing user.
@@ -128,6 +130,55 @@ public class AuthService {
         return new LoginResult(
                 loginResponse,
                 refreshToken
+        );
+    }
+    public LoginResult refreshAccessToken(String refreshToken) {
+
+        // Validate the refresh token stored in the database
+        RefreshToken storedRefreshToken =
+                refreshTokenService.validateRefreshToken(
+                        refreshToken
+                );
+
+        // Get the user associated with this refresh token
+        User user =
+                storedRefreshToken.getUser();
+
+        UserResponse userResponse =
+                new UserResponse(
+                        user.getId(),
+                        user.getName(),
+                        user.getEmail(),
+                        user.getRole()
+                );
+
+        // Revoke the old refresh token
+        refreshTokenService.revokeRefreshToken(
+                storedRefreshToken
+        );
+
+        // Create a new refresh token
+        String newRefreshToken =
+                refreshTokenService
+                        .createRefreshToken(user)
+                        .getToken();
+
+        // Create new short-lived access token
+        String newAccessToken =
+                jwtService.generateToken(
+                        user.getEmail(),
+                        user.getRole()
+                );
+
+        LoginResponse loginResponse =
+                new LoginResponse(
+                        newAccessToken,
+                        userResponse
+                );
+
+        return new LoginResult(
+                loginResponse,
+                newRefreshToken
         );
     }
 }
