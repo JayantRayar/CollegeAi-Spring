@@ -2,6 +2,7 @@ package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.LoginRequest;
 import com.collegeai.backend.dto.LoginResponse;
+import com.collegeai.backend.dto.LoginResult;
 import com.collegeai.backend.dto.RegisterRequest;
 import com.collegeai.backend.dto.UserResponse;
 import com.collegeai.backend.entity.User;
@@ -22,6 +23,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
     /**
      * Registers a new user.
@@ -59,17 +61,24 @@ public class AuthService {
     }
 
     /**
-     * Authenticates an existing user and generates a JWT.
+     * Authenticates an existing user.
+     *
+     * Generates:
+     * 1. A short-lived JWT access token.
+     * 2. A long-lived refresh token.
+     *
+     * The refresh token is stored in PostgreSQL.
      */
-    public LoginResponse login(LoginRequest request) {
+    public LoginResult login(LoginRequest request) {
 
         // Find the existing user using the email
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() ->
-                        new InvalidCredentialsException(
-                                "Invalid email or password"
-                        )
-                );
+        User user =
+                userRepository.findByEmail(request.getEmail())
+                        .orElseThrow(() ->
+                                new InvalidCredentialsException(
+                                        "Invalid email or password"
+                                )
+                        );
 
         // Compare entered password with the stored BCrypt hash
         if (!passwordEncoder.matches(
@@ -81,25 +90,44 @@ public class AuthService {
             );
         }
 
-        // Create safe user information
-        // Password is never included in the response
-        UserResponse userResponse = new UserResponse(
-                user.getId(),
-                user.getName(),
-                user.getEmail(),
-                user.getRole()
-        );
+        // Create safe user information.
+        // Password is never included in the response.
+        UserResponse userResponse =
+                new UserResponse(
+                        user.getId(),
+                        user.getName(),
+                        user.getEmail(),
+                        user.getRole()
+                );
 
-        // Generate JWT after successful authentication
-        String token = jwtService.generateToken(
-                user.getEmail(),
-                user.getRole()
-        );
+        // Generate short-lived JWT access token.
+        String token =
+                jwtService.generateToken(
+                        user.getEmail(),
+                        user.getRole()
+                );
 
-        // Return JWT and user information
-        return new LoginResponse(
-                token,
-                userResponse
+        // Generate and store long-lived refresh token.
+        String refreshToken =
+                refreshTokenService
+                        .createRefreshToken(user)
+                        .getToken();
+
+        // Create the public API response.
+        LoginResponse loginResponse =
+                new LoginResponse(
+                        token,
+                        userResponse
+                );
+
+        // Return both pieces internally.
+        //
+        // LoginResponse will be returned as JSON.
+        // Refresh token will later be placed
+        // inside an HttpOnly cookie by AuthController.
+        return new LoginResult(
+                loginResponse,
+                refreshToken
         );
     }
 }

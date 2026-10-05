@@ -1,5 +1,7 @@
 package com.collegeai.backend.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.collegeai.backend.dto.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -11,10 +13,47 @@ import java.time.LocalDateTime;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger logger =
+            LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(DocumentNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleDocumentNotFound(
             DocumentNotFoundException exception,
+            HttpServletRequest request) {
+
+        ApiErrorResponse response =
+                new ApiErrorResponse(
+                        LocalDateTime.now(),
+                        HttpStatus.NOT_FOUND.value(),
+                        exception.getMessage(),
+                        request.getRequestURI()
+                );
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(response);
+    }
+
+    @ExceptionHandler(EmailAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleEmailAlreadyExists(
+            EmailAlreadyExistsException exception,
+            HttpServletRequest request) {
+
+        ApiErrorResponse response =
+                new ApiErrorResponse(
+                        LocalDateTime.now(),
+                        HttpStatus.CONFLICT.value(),
+                        exception.getMessage(),
+                        request.getRequestURI()
+                );
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(response);
+    }
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleResourceNotFound(
+            ResourceNotFoundException exception,
             HttpServletRequest request) {
 
         ApiErrorResponse response =
@@ -97,7 +136,11 @@ public class GlobalExceptionHandler {
             Exception exception,
             HttpServletRequest request) {
 
-        exception.printStackTrace();
+        logger.error(
+                "Unexpected error while processing request: {}",
+                request.getRequestURI(),
+                exception
+        );
 
         ApiErrorResponse response =
                 new ApiErrorResponse(
