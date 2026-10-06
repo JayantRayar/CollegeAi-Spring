@@ -1,5 +1,6 @@
 package com.collegeai.backend.controller;
 
+import org.springframework.beans.factory.annotation.Value;
 import com.collegeai.backend.dto.LoginRequest;
 import com.collegeai.backend.dto.LoginResponse;
 import com.collegeai.backend.dto.LoginResult;
@@ -16,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.collegeai.backend.exception.InvalidRefreshTokenException;
 
 /**
  * Handles authentication-related HTTP requests.
@@ -29,6 +31,8 @@ public class AuthController {
             30L * 24 * 60 * 60;
 
     private final AuthService authService;
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
 
     @PostMapping("/register")
     public ResponseEntity<UserResponse> register(
@@ -96,8 +100,8 @@ public class AuthController {
         Cookie[] cookies = request.getCookies();
 
         if (cookies == null) {
-            throw new RuntimeException(
-                    "Refresh token cookie is missing"
+            throw new InvalidRefreshTokenException(
+                    "Invalid refresh token"
             );
         }
 
@@ -110,11 +114,10 @@ public class AuthController {
             }
         }
 
-        throw new RuntimeException(
-                "Refresh token cookie is missing"
+        throw new InvalidRefreshTokenException(
+                "Invalid refresh token"
         );
     }
-
     /**
      * Creates the secure HttpOnly refresh-token cookie.
      */
@@ -129,7 +132,7 @@ public class AuthController {
                                 refreshToken
                         )
                         .httpOnly(true)
-                        .secure(false)
+                        .secure(cookieSecure)
                         .path("/api/auth")
                         .maxAge(
                                 REFRESH_TOKEN_MAX_AGE_SECONDS

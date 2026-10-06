@@ -2,6 +2,7 @@ package com.collegeai.backend.service;
 
 import com.collegeai.backend.entity.RefreshToken;
 import com.collegeai.backend.entity.User;
+import com.collegeai.backend.exception.InvalidRefreshTokenException;
 import com.collegeai.backend.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,10 @@ public class RefreshTokenService {
     private final SecureRandom secureRandom =
             new SecureRandom();
 
+    /**
+     * Creates a new secure refresh token
+     * and stores it in the database.
+     */
     public RefreshToken createRefreshToken(User user) {
 
         byte[] randomBytes = new byte[64];
@@ -37,6 +42,7 @@ public class RefreshTokenService {
 
         refreshToken.setToken(token);
         refreshToken.setUser(user);
+
         refreshToken.setExpiresAt(
                 LocalDateTime.now()
                         .plusDays(
@@ -49,6 +55,14 @@ public class RefreshTokenService {
         );
     }
 
+    /**
+     * Validates a refresh token.
+     *
+     * Checks:
+     * 1. Token exists.
+     * 2. Token is not revoked.
+     * 3. Token is not expired.
+     */
     public RefreshToken validateRefreshToken(
             String token) {
 
@@ -56,28 +70,32 @@ public class RefreshTokenService {
                 refreshTokenRepository
                         .findByToken(token)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new InvalidRefreshTokenException(
                                         "Invalid refresh token"
                                 )
                         );
 
         if (refreshToken.isRevoked()) {
-            throw new RuntimeException(
-                    "Refresh token has been revoked"
+
+            throw new InvalidRefreshTokenException(
+                    "Invalid refresh token"
             );
         }
 
         if (refreshToken.getExpiresAt()
                 .isBefore(LocalDateTime.now())) {
 
-            throw new RuntimeException(
-                    "Refresh token has expired"
+            throw new InvalidRefreshTokenException(
+                    "Invalid refresh token"
             );
         }
 
         return refreshToken;
     }
 
+    /**
+     * Revokes the existing refresh token.
+     */
     public void revokeRefreshToken(
             RefreshToken refreshToken) {
 
