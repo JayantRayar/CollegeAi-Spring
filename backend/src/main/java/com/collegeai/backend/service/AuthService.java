@@ -1,5 +1,6 @@
 package com.collegeai.backend.service;
 
+import org.springframework.transaction.annotation.Transactional;
 import com.collegeai.backend.dto.LoginRequest;
 import com.collegeai.backend.dto.LoginResponse;
 import com.collegeai.backend.dto.LoginResult;
@@ -132,6 +133,7 @@ public class AuthService {
                 refreshToken
         );
     }
+    @Transactional
     public LoginResult refreshAccessToken(String refreshToken) {
 
         // Validate the refresh token stored in the database
