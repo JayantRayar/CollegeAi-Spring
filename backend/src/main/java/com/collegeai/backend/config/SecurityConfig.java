@@ -38,7 +38,6 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
                                 "/api/test/embedding",
-                                "/api/rag/search",
                                 "/error"
                         ).permitAll()
 
