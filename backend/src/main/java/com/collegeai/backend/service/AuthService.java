@@ -62,6 +62,19 @@ public class AuthService {
         );
     }
 
+    public void logout(String refreshToken) {
+
+        // Validate the refresh token
+        RefreshToken storedRefreshToken =
+                refreshTokenService.validateRefreshToken(
+                        refreshToken
+                );
+
+        // Revoke the current browser session's refresh token
+        refreshTokenService.revokeRefreshToken(
+                storedRefreshToken
+        );
+    }
 
     /**
      * Authenticates an existing user.
@@ -133,6 +146,7 @@ public class AuthService {
                 refreshToken
         );
     }
+
     @Transactional
     public LoginResult refreshAccessToken(String refreshToken) {
 

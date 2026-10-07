@@ -91,6 +91,21 @@ public class AuthController {
         );
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            HttpServletRequest request,
+            HttpServletResponse response) {
+
+        String refreshToken =
+                extractRefreshToken(request);
+
+        authService.logout(refreshToken);
+
+        clearRefreshTokenCookie(response);
+
+        return ResponseEntity.ok().build();
+    }
+
     /**
      * Extracts the refresh token from the browser cookie.
      */
@@ -137,6 +152,27 @@ public class AuthController {
                         .maxAge(
                                 REFRESH_TOKEN_MAX_AGE_SECONDS
                         )
+                        .sameSite("Lax")
+                        .build();
+
+        response.addHeader(
+                HttpHeaders.SET_COOKIE,
+                refreshTokenCookie.toString()
+        );
+    }
+    /**
+     * Clears the refresh-token cookie from the browser.
+     */
+    private void clearRefreshTokenCookie(
+            HttpServletResponse response) {
+
+        ResponseCookie refreshTokenCookie =
+                ResponseCookie
+                        .from("refresh_token", "")
+                        .httpOnly(true)
+                        .secure(cookieSecure)
+                        .path("/api/auth")
+                        .maxAge(0)
                         .sameSite("Lax")
                         .build();
 
