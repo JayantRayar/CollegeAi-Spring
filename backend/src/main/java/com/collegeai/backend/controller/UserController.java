@@ -1,10 +1,12 @@
 package com.collegeai.backend.controller;
 
+import com.collegeai.backend.dto.ChangePasswordRequest;
 import com.collegeai.backend.dto.UpdateProfileRequest;
 import com.collegeai.backend.dto.UserResponse;
 import com.collegeai.backend.entity.User;
 import com.collegeai.backend.exception.ResourceNotFoundException;
 import com.collegeai.backend.repository.UserRepository;
+import com.collegeai.backend.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserRepository userRepository;
+    private final AuthService authService;
 
     /**
      * Returns the currently authenticated user's profile.
@@ -76,5 +79,17 @@ public class UserController {
                 );
 
         return ResponseEntity.ok(response);
+    }
+    @PutMapping("/password")
+    public ResponseEntity<Void> changePassword(
+            Authentication authentication,
+            @Valid @RequestBody ChangePasswordRequest request) {
+
+        authService.changePassword(
+                authentication.getName(),
+                request
+        );
+
+        return ResponseEntity.ok().build();
     }
 }
