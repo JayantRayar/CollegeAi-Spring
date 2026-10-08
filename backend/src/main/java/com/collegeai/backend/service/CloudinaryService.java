@@ -36,4 +36,26 @@ public class CloudinaryService {
             );
         }
     }
+    /**
+     * Deletes a previously uploaded raw file from Cloudinary.
+     *
+     * Used to clean up the Cloudinary file when saving
+     * its metadata in PostgreSQL fails.
+     */
+    public void deleteFile(String publicId) {
+        try {
+            cloudinary.uploader().destroy(
+                    publicId,
+                    ObjectUtils.asMap(
+                            "resource_type", "raw",
+                            "type", "upload"
+                    )
+            );
+        } catch (Exception e) {
+            throw new DocumentUploadException(
+                    "Failed to delete PDF from Cloudinary.",
+                    e
+            );
+        }
+    }
 }

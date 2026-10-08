@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+
 import java.time.LocalDateTime;
 
 @RestControllerAdvice
@@ -92,17 +94,28 @@ public class GlobalExceptionHandler {
             DocumentUploadException exception,
             HttpServletRequest request) {
 
-        ApiErrorResponse response =
-                new ApiErrorResponse(
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiErrorResponse(
                         LocalDateTime.now(),
-                        HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                        HttpStatus.BAD_REQUEST.value(),
                         exception.getMessage(),
                         request.getRequestURI()
-                );
+                ));
+    }
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingServletRequestPart(
+            MissingServletRequestPartException exception,
+            HttpServletRequest request) {
 
         return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(response);
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiErrorResponse(
+                        LocalDateTime.now(),
+                        HttpStatus.BAD_REQUEST.value(),
+                        "PDF file is required.",
+                        request.getRequestURI()
+                ));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
