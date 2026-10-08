@@ -149,6 +149,23 @@ public class GlobalExceptionHandler {
                 .body(errorResponse);
     }
 
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(
+            InvalidCredentialsException exception,
+            HttpServletRequest request) {
+
+        ApiErrorResponse response =
+                new ApiErrorResponse(
+                        LocalDateTime.now(),
+                        HttpStatus.UNAUTHORIZED.value(),
+                        exception.getMessage(),
+                        request.getRequestURI()
+                );
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(response);
+    }
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleException(
             Exception exception,
