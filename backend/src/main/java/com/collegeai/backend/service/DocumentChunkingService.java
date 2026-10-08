@@ -26,8 +26,8 @@ public class DocumentChunkingService {
     public DocumentChunkingService() {
 
         this.splitter = TokenTextSplitter.builder()
-                .withChunkSize(1500)
-                .withMinChunkSizeChars(500)
+                .withChunkSize(800)
+                .withMinChunkSizeChars(300)
                 .withKeepSeparator(true)
                 .withPunctuationMarks(
                         List.of('.', '?', '!', '\n', ';', ':')

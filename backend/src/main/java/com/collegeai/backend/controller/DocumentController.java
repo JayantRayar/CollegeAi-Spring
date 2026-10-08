@@ -1,6 +1,8 @@
 package com.collegeai.backend.controller;
 
+import com.collegeai.backend.dto.DocumentChunk;
 import com.collegeai.backend.dto.DocumentResponse;
+import com.collegeai.backend.service.DocumentProcessingService;
 import com.collegeai.backend.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -10,9 +12,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-/**
- * Handles admin document-management requests.
- */
 @RestController
 @RequestMapping("/api/admin/documents")
 @RequiredArgsConstructor
@@ -20,18 +19,13 @@ public class DocumentController {
 
     private final DocumentService documentService;
 
-    /**
-     * Returns all documents uploaded by the admin.
-     */
+
     @GetMapping
     public List<DocumentResponse> getAllDocuments() {
 
         return documentService.getAllDocuments();
     }
 
-    /**
-     * Uploads a PDF document.
-     */
     @PostMapping(
             value = "/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
@@ -42,4 +36,6 @@ public class DocumentController {
 
         return documentService.uploadDocument(file);
     }
+
+
 }
