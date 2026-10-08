@@ -1,5 +1,4 @@
-package com.collegeai.backend.service;
-
+ package com.collegeai.backend.service;
 import com.collegeai.backend.dto.DocumentChunk;
 import com.collegeai.backend.entity.Document;
 import com.collegeai.backend.entity.DocumentStatus;
@@ -41,19 +40,22 @@ public class DocumentProcessingService {
     private final PdfTextExtractionService pdfTextExtractionService;
     private final DocumentChunkingService documentChunkingService;
     private final DocumentVectorStoreService documentVectorStoreService;
+    private final CloudinaryService cloudinaryService;
 
     public DocumentProcessingService(
             DocumentRepository documentRepository,
             PdfDownloadService pdfDownloadService,
             PdfTextExtractionService pdfTextExtractionService,
             DocumentChunkingService documentChunkingService,
-            DocumentVectorStoreService documentVectorStoreService
+            DocumentVectorStoreService documentVectorStoreService,
+            CloudinaryService cloudinaryService
     ) {
         this.documentRepository = documentRepository;
         this.pdfDownloadService = pdfDownloadService;
         this.pdfTextExtractionService = pdfTextExtractionService;
         this.documentChunkingService = documentChunkingService;
         this.documentVectorStoreService = documentVectorStoreService;
+        this.cloudinaryService = cloudinaryService;
     }
 
     /**
@@ -155,11 +157,27 @@ public class DocumentProcessingService {
             );
         }
     }
+
     /**
-     * Deletes a document and all of its vector data.
+     * Deletes a document and all associated data.
      *
-     * Vector data is removed from ChromaDB first.
-     * Then the document metadata is removed from PostgreSQL.
+     * Deletion flow:
+     *
+     * PostgreSQL
+     *     ↓
+     * Verify document exists
+     *     ↓
+     * ChromaDB
+     *     ↓
+     * Delete vector data
+     *     ↓
+     * Cloudinary
+     *     ↓
+     * Delete original PDF
+     *     ↓
+     * PostgreSQL
+     *     ↓
+     * Delete document metadata
      */
     public void deleteDocument(Long documentId) {
 
@@ -173,10 +191,19 @@ public class DocumentProcessingService {
                                 )
                         );
 
-        // Remove all ChromaDB vectors belonging to this document.
-        documentVectorStoreService.deleteDocumentChunks(documentId);
+        // Remove all ChromaDB vectors belonging
+        // to this document.
+        documentVectorStoreService.deleteDocumentChunks(
+                documentId
+        );
+
+        // Remove the original PDF from Cloudinary.
+        cloudinaryService.deleteFile(
+                document.getPublicId()
+        );
 
         // Remove the document metadata from PostgreSQL.
         documentRepository.delete(document);
     }
 }
+
