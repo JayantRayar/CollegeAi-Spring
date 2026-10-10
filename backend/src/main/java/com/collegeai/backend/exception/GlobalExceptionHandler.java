@@ -71,16 +71,23 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+
     @ExceptionHandler(DocumentProcessingException.class)
     public ResponseEntity<ApiErrorResponse> handleDocumentProcessingException(
             DocumentProcessingException exception,
             HttpServletRequest request) {
 
+        logger.error(
+                "Document processing failed for request: {}",
+                request.getRequestURI(),
+                exception
+        );
+
         ApiErrorResponse response =
                 new ApiErrorResponse(
                         LocalDateTime.now(),
                         HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                        exception.getMessage(),
+                        "Document processing failed. Please try again later.",
                         request.getRequestURI()
                 );
 
@@ -129,6 +136,9 @@ public class GlobalExceptionHandler {
                         .stream()
                         .findFirst()
                         .map(error -> error.getDefaultMessage())
+                        .filter(errorMessage ->
+                                errorMessage != null
+                                        && !errorMessage.isBlank())
                         .orElse("Invalid request.");
 
         ApiErrorResponse response =

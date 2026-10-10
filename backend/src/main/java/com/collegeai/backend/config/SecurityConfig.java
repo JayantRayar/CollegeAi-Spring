@@ -9,9 +9,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Configuration
 public class SecurityConfig {
+    private static final Logger logger =
+            LoggerFactory.getLogger(SecurityConfig.class);
 
     @Bean
     public SecurityFilterChain securityFilterChain(
@@ -23,7 +27,7 @@ public class SecurityConfig {
             CustomAccessDeniedHandler accessDeniedHandler
     ) throws Exception {
 
-        System.out.println(">>> SecurityConfig is loaded");
+        logger.info("SecurityConfig is loaded");
 
         http
                 .csrf(csrf -> csrf.disable())
