@@ -68,6 +68,22 @@ public class ChatService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ChatConversationResponse> getUserConversations(String userEmail) {
+
+        // Find the currently authenticated user.
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
+
+        // Fetch only this user's conversations, newest activity first.
+        return chatConversationRepository
+                .findAllByUserIdOrderByUpdatedAtDesc(user.getId())
+                .stream()
+                .map(ChatConversationResponse::from)
+                .toList();
+    }
+
     @Transactional
     public ChatResponse chat(ChatRequest request, String userEmail) {
 

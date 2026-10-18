@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import com.collegeai.backend.dto.ChatMessageResponse;
 import java.util.List;
+import com.collegeai.backend.dto.ChatConversationResponse;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -44,5 +45,14 @@ public class ChatController {
         );
 
         return ResponseEntity.ok(messages);
+    }
+    @GetMapping("/conversations")
+    public ResponseEntity<List<ChatConversationResponse>> getUserConversations(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        List<ChatConversationResponse> conversations =
+                chatService.getUserConversations(jwt.getSubject());
+
+        return ResponseEntity.ok(conversations);
     }
 }
