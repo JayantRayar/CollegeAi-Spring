@@ -1,15 +1,23 @@
 
 package com.collegeai.backend.service;
 
-import com.collegeai.backend.dto.ChatRequest;
-import com.collegeai.backend.dto.ChatResponse;
-import com.collegeai.backend.dto.ChatSource;
-import com.collegeai.backend.dto.RetrievedChunk;
+import com.collegeai.backend.dto.*;
+import com.collegeai.backend.entity.ChatConversation;
+import com.collegeai.backend.entity.ChatMessage;
+import com.collegeai.backend.entity.MessageRole;
+import com.collegeai.backend.entity.User;
+import com.collegeai.backend.exception.ResourceNotFoundException;
+import com.collegeai.backend.repository.ChatConversationRepository;
+import com.collegeai.backend.repository.ChatMessageRepository;
+import com.collegeai.backend.repository.UserRepository;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Service
@@ -18,40 +26,116 @@ public class ChatService {
     private final DocumentRetrievalService documentRetrievalService;
     private final ChatClient chatClient;
 
+    private final UserRepository userRepository;
+    private final ChatConversationRepository chatConversationRepository;
+    private final ChatMessageRepository chatMessageRepository;
+
     public ChatService(
             DocumentRetrievalService documentRetrievalService,
-            @Qualifier("googleGenAiChatModel") ChatModel chatModel) {
+            @Qualifier("googleGenAiChatModel") ChatModel chatModel,
+            UserRepository userRepository,
+            ChatConversationRepository chatConversationRepository,
+            ChatMessageRepository chatMessageRepository) {
 
-        this.documentRetrievalService =
-                documentRetrievalService;
+        this.documentRetrievalService = documentRetrievalService;
+        this.chatClient = ChatClient.create(chatModel);
 
-        this.chatClient =
-                ChatClient.create(chatModel);
+        this.userRepository = userRepository;
+        this.chatConversationRepository = chatConversationRepository;
+        this.chatMessageRepository = chatMessageRepository;
+    }
+    @Transactional(readOnly = true)
+    public List<ChatMessageResponse> getConversationMessages(
+            Long conversationId,
+            String userEmail) {
+
+        // Find the logged-in user using their email from the JWT.
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
+
+        // Verify that this conversation belongs to the logged-in user.
+        ChatConversation conversation = chatConversationRepository
+                .findByIdAndUserId(conversationId, user.getId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Conversation not found"));
+
+        // Fetch all messages in chronological order and convert them to DTOs.
+        return chatMessageRepository
+                .findAllByConversationIdOrderByCreatedAtAscIdAsc(conversation.getId())
+                .stream()
+                .map(ChatMessageResponse::from)
+                .toList();
     }
 
-    public ChatResponse chat(ChatRequest request) {
+    @Transactional
+    public ChatResponse chat(ChatRequest request, String userEmail) {
 
         String query = request.getQuery().trim();
 
-        // Step 1:
+        // Step 1: Identify the authenticated user using JWT email.
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
+
+        // Step 2: Create a new conversation or retrieve an existing one.
+        ChatConversation conversation;
+
+        if (request.getConversationId() == null) {
+
+            conversation = new ChatConversation();
+
+            conversation.setUser(user);
+
+            // Derive the title from the first question.
+            conversation.setTitle(
+                    query.substring(0, Math.min(query.length(), 80))
+            );
+
+            OffsetDateTime now = OffsetDateTime.now();
+
+            conversation.setCreatedAt(now);
+            conversation.setUpdatedAt(now);
+
+            conversation = chatConversationRepository.save(conversation);
+
+        } else {
+
+            conversation = chatConversationRepository
+                    .findByIdAndUserId(
+                            request.getConversationId(),
+                            user.getId()
+                    )
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Conversation not found"
+                            ));
+        }
+
+        // Step 3: Save the user's question.
+        ChatMessage userMessage = new ChatMessage();
+
+        userMessage.setConversation(conversation);
+        userMessage.setRole(MessageRole.USER);
+        userMessage.setContent(query);
+        userMessage.setCreatedAt(OffsetDateTime.now());
+
+        chatMessageRepository.save(userMessage);
+
+        // Step 4:
         // Always search the college PDF knowledge base first.
         List<RetrievedChunk> retrievedChunks =
                 documentRetrievalService.search(query);
 
-        // Step 2:
-        // Convert retrieved PDF chunks into source information
-        // that can be returned to the frontend.
-        List<ChatSource> sources =
-                retrievedChunks.stream()
-                        .map(ChatSource::from)
-                        .toList();
+        // Step 5: Convert retrieved chunks into source information.
+        List<ChatSource> sources = retrievedChunks.stream()
+                .map(ChatSource::from)
+                .toList();
 
         String answer;
         String answerType;
 
-        // Step 3:
-        // If chunks were retrieved, ask Gemini to answer
-        // using only facts supported by the college context.
+        // Step 6: Generate the answer using college context when available.
         if (!retrievedChunks.isEmpty()) {
 
             answerType = "COLLEGE_KNOWLEDGE";
@@ -134,7 +218,6 @@ public class ChatService {
                         .call()
                         .content();
 
-                // Handle an unexpectedly empty model response.
                 if (answer == null || answer.isBlank()) {
                     answer = "I could not generate an answer from "
                             + "the available college information.";
@@ -142,16 +225,14 @@ public class ChatService {
 
             } catch (Exception e) {
 
-                // If Gemini is unavailable, use the retrieved
-                // document content as a fallback.
+                // Safe response if Gemini is unavailable.
                 answer = buildFallbackAnswer(retrievedChunks);
             }
 
         } else {
 
-            // Step 4:
-            // If no chunks pass the retrieval threshold,
-            // use Gemini's general knowledge.
+            // Step 7: Use general Gemini knowledge only when
+            // no sufficiently relevant college chunks are retrieved.
             answerType = "GENERAL_AI";
 
             try {
@@ -189,15 +270,31 @@ public class ChatService {
 
             } catch (Exception e) {
 
-                // Safe response if the general AI call fails.
                 answer = "The AI service is temporarily unavailable. "
                         + "Please try again shortly.";
             }
         }
 
-        // Step 5:
-        // Preserve the existing API response structure.
+        // Step 8: Save the assistant's answer and its sources.
+        ChatMessage assistantMessage = new ChatMessage();
+
+        assistantMessage.setConversation(conversation);
+        assistantMessage.setRole(MessageRole.ASSISTANT);
+        assistantMessage.setContent(answer);
+        assistantMessage.setAnswerType(answerType);
+        assistantMessage.setSources(sources);
+        assistantMessage.setCreatedAt(OffsetDateTime.now());
+
+        chatMessageRepository.save(assistantMessage);
+
+        // Step 9: Update the conversation's last activity time.
+        conversation.setUpdatedAt(OffsetDateTime.now());
+
+        chatConversationRepository.save(conversation);
+
+        // Step 10: Return the response with conversation ID.
         return new ChatResponse(
+                conversation.getId(),
                 answer,
                 answerType,
                 sources
@@ -209,6 +306,7 @@ public class ChatService {
      * retrieved PDF chunk when Gemini is unavailable.
      */
     private String buildFallbackAnswer(List<RetrievedChunk> chunks) {
+
         return "I'm temporarily unable to generate an answer. "
                 + "Please try again shortly.";
     }
@@ -217,8 +315,7 @@ public class ChatService {
      * Combines retrieved PDF chunks into the context
      * supplied to Gemini.
      */
-    private String buildContext(
-            List<RetrievedChunk> chunks) {
+    private String buildContext(List<RetrievedChunk> chunks) {
 
         return chunks.stream()
                 .map(chunk -> """
@@ -237,4 +334,3 @@ public class ChatService {
                 );
     }
 }
-

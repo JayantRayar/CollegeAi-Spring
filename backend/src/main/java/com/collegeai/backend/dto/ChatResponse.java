@@ -9,9 +9,8 @@ import java.util.List;
 @AllArgsConstructor
 public class ChatResponse {
 
+    private Long conversationId;
     private String answer;
-
     private String answerType;
-
     private List<ChatSource> sources;
 }

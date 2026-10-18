@@ -1,9 +1,10 @@
 package com.collegeai.backend.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.NoArgsConstructor;
+
+import jakarta.validation.constraints.NotBlank;
 
 @Getter
 @Setter
@@ -12,4 +13,6 @@ public class ChatRequest {
 
     @NotBlank(message = "Query cannot be empty")
     private String query;
+
+    private Long conversationId;
 }
