@@ -318,8 +318,8 @@ public class ChatService {
     }
 
     /**
-     * Creates a fallback answer directly from the best
-     * retrieved PDF chunk when Gemini is unavailable.
+     * Returns a safe fallback message when Gemini
+     * is unavailable while processing college information.
      */
     private String buildFallbackAnswer(List<RetrievedChunk> chunks) {
 
