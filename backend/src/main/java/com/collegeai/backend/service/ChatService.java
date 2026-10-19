@@ -10,7 +10,8 @@ import com.collegeai.backend.exception.ResourceNotFoundException;
 import com.collegeai.backend.repository.ChatConversationRepository;
 import com.collegeai.backend.repository.ChatMessageRepository;
 import com.collegeai.backend.repository.UserRepository;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -22,6 +23,9 @@ import java.util.List;
 
 @Service
 public class ChatService {
+
+    private static final Logger logger =
+            LoggerFactory.getLogger(ChatService.class);
 
     private final DocumentRetrievalService documentRetrievalService;
     private final ChatClient chatClient;
@@ -241,6 +245,7 @@ public class ChatService {
 
             } catch (Exception e) {
 
+                logger.error("Failed to generate college knowledge answer using Gemini", e);
                 // Safe response if Gemini is unavailable.
                 answer = buildFallbackAnswer(retrievedChunks);
             }
@@ -286,6 +291,7 @@ public class ChatService {
 
             } catch (Exception e) {
 
+                logger.error("Failed to generate general AI answer using Gemini", e);
                 answer = "The AI service is temporarily unavailable. "
                         + "Please try again shortly.";
             }
