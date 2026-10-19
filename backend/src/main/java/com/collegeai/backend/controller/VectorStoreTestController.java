@@ -4,7 +4,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.context.annotation.Lazy;
 import java.util.List;
 
 /**
@@ -16,7 +16,7 @@ public class VectorStoreTestController {
 
     private final VectorStore vectorStore;
 
-    public VectorStoreTestController(VectorStore vectorStore) {
+    public VectorStoreTestController(@Lazy VectorStore vectorStore) {
         this.vectorStore = vectorStore;
     }
 

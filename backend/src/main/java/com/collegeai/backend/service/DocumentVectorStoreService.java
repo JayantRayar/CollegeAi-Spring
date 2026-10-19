@@ -5,6 +5,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
@@ -26,7 +27,7 @@ public class DocumentVectorStoreService {
 
     private final VectorStore vectorStore;
 
-    public DocumentVectorStoreService(VectorStore vectorStore) {
+    public DocumentVectorStoreService(@Lazy VectorStore vectorStore) {
         this.vectorStore = vectorStore;
     }
 
