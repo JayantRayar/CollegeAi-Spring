@@ -23,3 +23,6 @@ backend/*.log
 # OS
 .DS_Store
 Thumbs.db
+
+/Details.txt
+/Details.txt.backup
