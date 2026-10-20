@@ -30,6 +30,7 @@ public class ChatService {
     private final DocumentRetrievalService documentRetrievalService;
     private final AnswerabilityService answerabilityService;
     private final ChatClient chatClient;
+    private final AnswerGroundingService answerGroundingService;
 
     private final UserRepository userRepository;
     private final ChatConversationRepository chatConversationRepository;
@@ -38,6 +39,7 @@ public class ChatService {
     public ChatService(
             DocumentRetrievalService documentRetrievalService,
             AnswerabilityService answerabilityService,
+            AnswerGroundingService answerGroundingService,
             @Qualifier("googleGenAiChatModel") ChatModel chatModel,
             UserRepository userRepository,
             ChatConversationRepository chatConversationRepository,
@@ -45,8 +47,8 @@ public class ChatService {
 
         this.documentRetrievalService = documentRetrievalService;
         this.answerabilityService = answerabilityService;
+        this.answerGroundingService = answerGroundingService;
         this.chatClient = ChatClient.create(chatModel);
-
         this.userRepository = userRepository;
         this.chatConversationRepository = chatConversationRepository;
         this.chatMessageRepository = chatMessageRepository;
@@ -282,6 +284,27 @@ public class ChatService {
                                 + "the available college information.";
                     }
 
+                    // Verify that the generated answer is supported by college documents.
+                    GroundingResponse groundingResult =
+                            answerGroundingService.verifyAnswer(
+                                    query,
+                                    context,
+                                    answer
+                            );
+
+                    if (groundingResult == null || !groundingResult.isGrounded()) {
+
+                        logger.warn(
+                                "Generated college answer failed grounding verification. Reason: {}",
+                                groundingResult != null
+                                        ? groundingResult.getReason()
+                                        : "No grounding result returned"
+                        );
+
+                        answer = "I could not verify the generated answer "
+                                + "against the available college documents. "
+                                + "Please try rephrasing your question.";
+                    }
                 } catch (Exception e) {
 
                     logger.error(
