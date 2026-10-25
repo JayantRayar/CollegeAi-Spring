@@ -1,3 +1,4 @@
+
 package com.collegeai.backend.dto;
 
 import lombok.AllArgsConstructor;
@@ -9,6 +10,12 @@ import java.util.List;
 @AllArgsConstructor
 public class CampusRouteResponse {
 
+    // Requested campus location IDs.
+    private Long startLocationId;
+
+    private Long endLocationId;
+
+    // Actual map nodes selected by the routing algorithm.
     private Long startNodeId;
 
     private Long endNodeId;
