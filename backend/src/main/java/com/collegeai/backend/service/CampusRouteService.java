@@ -3,6 +3,7 @@ package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.CampusRouteResponse;
 import com.collegeai.backend.dto.MapNodeResponse;
+import com.collegeai.backend.dto.RouteInstructionResponse;
 import com.collegeai.backend.entity.MapNode;
 import com.collegeai.backend.entity.MapPath;
 import com.collegeai.backend.exception.ResourceNotFoundException;
@@ -171,6 +172,119 @@ public class CampusRouteService {
                 .toList();
     }
 
+    // Generates human-readable instructions for the calculated route.
+    private List<RouteInstructionResponse> generateInstructions(
+            List<Long> routeNodeIds,
+            Map<Long, List<Edge>> graph
+    ) {
+
+        if (routeNodeIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, MapNode> nodeMap = new HashMap<>();
+
+        for (MapNode node : mapNodeRepository.findAllById(routeNodeIds)) {
+            nodeMap.put(node.getId(), node);
+        }
+
+        MapNode startNode = nodeMap.get(routeNodeIds.get(0));
+
+        MapNode destinationNode =
+                nodeMap.get(routeNodeIds.get(routeNodeIds.size() - 1));
+
+        if (startNode == null || destinationNode == null) {
+            return List.of();
+        }
+
+        List<RouteInstructionResponse> instructions = new ArrayList<>();
+
+        // First instruction: tell the user where to start.
+        instructions.add(new RouteInstructionResponse(
+                1,
+                "START",
+                "Start at " + startNode.getName() + ".",
+                null,
+                startNode.getId(),
+                null,
+                startNode.getFloor(),
+                0.0
+        ));
+
+        // Generate an instruction for every connection in the route.
+        for (int i = 0; i < routeNodeIds.size() - 1; i++) {
+
+            Long fromNodeId = routeNodeIds.get(i);
+            Long toNodeId = routeNodeIds.get(i + 1);
+
+            MapNode fromNode = nodeMap.get(fromNodeId);
+            MapNode toNode = nodeMap.get(toNodeId);
+
+            if (fromNode == null || toNode == null) {
+                continue;
+            }
+
+            // Find the distance of this particular connection.
+            Double distance = graph.get(fromNodeId).stream()
+                    .filter(edge ->
+                            edge.destinationNodeId().equals(toNodeId))
+                    .map(Edge::distanceMeters)
+                    .findFirst()
+                    .orElse(null);
+
+            // Different floors mean the user must use the staircase.
+            boolean floorChanged =
+                    !Objects.equals(fromNode.getFloor(), toNode.getFloor());
+
+            String instructionType;
+            String instruction;
+
+            if (floorChanged) {
+
+                instructionType = "STAIRS";
+
+                instruction = "Take the staircase from floor "
+                        + fromNode.getFloor()
+                        + " to floor "
+                        + toNode.getFloor() + ".";
+
+            } else {
+
+                instructionType = "WALK";
+
+                instruction = "Walk from "
+                        + fromNode.getName()
+                        + " to "
+                        + toNode.getName() + ".";
+            }
+
+            instructions.add(new RouteInstructionResponse(
+                    instructions.size() + 1,
+                    instructionType,
+                    instruction,
+                    fromNodeId,
+                    toNodeId,
+                    fromNode.getFloor(),
+                    toNode.getFloor(),
+                    distance
+            ));
+        }
+
+        // Final instruction: confirm that the destination is reached.
+        instructions.add(new RouteInstructionResponse(
+                instructions.size() + 1,
+                "ARRIVAL",
+                "You have arrived at " + destinationNode.getName() + ".",
+                destinationNode.getId(),
+                null,
+                destinationNode.getFloor(),
+                null,
+                0.0
+        ));
+
+        return instructions;
+    }
+
     // Existing routing method using map node IDs.
     @Transactional(readOnly = true)
     public CampusRouteResponse findShortestRoute(
@@ -203,7 +317,8 @@ public class CampusRouteService {
                 endNodeId,
                 routeNodeIds.isEmpty()
                         ? null : result.distances().get(endNodeId),
-                convertRoute(routeNodeIds)
+                convertRoute(routeNodeIds),
+                generateInstructions(routeNodeIds, graph)
         );
     }
 
@@ -281,6 +396,7 @@ public class CampusRouteService {
                     null,
                     null,
                     null,
+                    List.of(),
                     List.of()
             );
         }
@@ -291,7 +407,8 @@ public class CampusRouteService {
                 bestStartNodeId,
                 bestEndNodeId,
                 shortestDistance,
-                convertRoute(bestRoute)
+                convertRoute(bestRoute),
+                generateInstructions(bestRoute, graph)
         );
     }
 }

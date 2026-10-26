@@ -10,18 +10,18 @@ import java.util.List;
 @AllArgsConstructor
 public class CampusRouteResponse {
 
-    // Requested campus location IDs.
     private Long startLocationId;
 
     private Long endLocationId;
 
-    // Actual map nodes selected by the routing algorithm.
     private Long startNodeId;
 
     private Long endNodeId;
 
     private Double totalDistanceMeters;
 
-    // Ordered nodes from starting point to destination.
     private List<MapNodeResponse> route;
+
+    // Step-by-step navigation instructions.
+    private List<RouteInstructionResponse> instructions;
 }

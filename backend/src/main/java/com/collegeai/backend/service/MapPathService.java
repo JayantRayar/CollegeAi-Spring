@@ -5,6 +5,7 @@ import com.collegeai.backend.dto.MapPathRequest;
 import com.collegeai.backend.dto.MapPathResponse;
 import com.collegeai.backend.entity.MapNode;
 import com.collegeai.backend.entity.MapPath;
+import com.collegeai.backend.exception.DuplicateMapPathException;
 import com.collegeai.backend.repository.MapNodeRepository;
 import com.collegeai.backend.repository.MapPathRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -39,6 +40,12 @@ public class MapPathService {
 
         // Validate whether this connection can cross floors.
         validateFloorTransition(startNode, endNode);
+
+        // Prevent duplicate connections.
+        validateDuplicatePath(
+                request.getStartNodeId(),
+                request.getEndNodeId()
+        );
 
         MapPath path = new MapPath();
 
@@ -104,6 +111,13 @@ public class MapPathService {
         // Validate whether this connection can cross floors.
         validateFloorTransition(startNode, endNode);
 
+        // Prevent duplicate connections, excluding the current path.
+        validateDuplicatePath(
+                request.getStartNodeId(),
+                request.getEndNodeId(),
+                id
+        );
+
         existingPath.setStartNode(startNode);
         existingPath.setEndNode(endNode);
         existingPath.setDistanceMeters(request.getDistanceMeters());
@@ -144,6 +158,51 @@ public class MapPathService {
                                 "Map path not found with ID: " + id
                         )
                 );
+    }
+
+    // Prevent duplicate connections during creation.
+    private void validateDuplicatePath(
+            Long startNodeId,
+            Long endNodeId) {
+
+        boolean pathExists =
+                mapPathRepository
+                        .existsByStartNode_IdAndEndNode_IdOrStartNode_IdAndEndNode_Id(
+                                startNodeId,
+                                endNodeId,
+                                endNodeId,
+                                startNodeId
+                        );
+
+        if (pathExists) {
+            throw new DuplicateMapPathException(
+                    "A path already exists between these two nodes."
+            );
+        }
+    }
+
+    // Prevent duplicate connections during updates.
+    private void validateDuplicatePath(
+            Long startNodeId,
+            Long endNodeId,
+            Long currentPathId) {
+
+        boolean pathExists =
+                mapPathRepository
+                        .existsByStartNode_IdAndEndNode_IdAndIdNotOrStartNode_IdAndEndNode_IdAndIdNot(
+                                startNodeId,
+                                endNodeId,
+                                currentPathId,
+                                endNodeId,
+                                startNodeId,
+                                currentPathId
+                        );
+
+        if (pathExists) {
+            throw new IllegalArgumentException(
+                    "A path already exists between these two nodes."
+            );
+        }
     }
 
     // Prevent a node from connecting to itself.
