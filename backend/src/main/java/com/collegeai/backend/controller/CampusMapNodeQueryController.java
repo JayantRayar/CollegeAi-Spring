@@ -21,6 +21,14 @@ public class CampusMapNodeQueryController {
         return mapNodeService.getAllNodes();
     }
 
+    // Retrieve all map nodes belonging to a particular floor.
+    @GetMapping("/floor/{floor}")
+    public List<MapNodeResponse> getNodesByFloor(
+            @PathVariable Integer floor) {
+
+        return mapNodeService.getNodesByFloor(floor);
+    }
+
     // Retrieve one map node by its ID.
     @GetMapping("/{id}")
     public MapNodeResponse getNodeById(@PathVariable Long id) {

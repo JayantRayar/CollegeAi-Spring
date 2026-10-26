@@ -1,3 +1,4 @@
+
 package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.MapPathRequest;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +37,9 @@ public class MapPathService {
         MapNode endNode =
                 findNodeById(request.getEndNodeId());
 
+        // Validate whether this connection can cross floors.
+        validateFloorTransition(startNode, endNode);
+
         MapPath path = new MapPath();
 
         path.setStartNode(startNode);
@@ -52,6 +57,17 @@ public class MapPathService {
     public List<MapPathResponse> getAllPaths() {
 
         return mapPathRepository.findAll()
+                .stream()
+                .map(MapPathResponse::from)
+                .toList();
+    }
+
+    // Retrieve paths where both nodes belong to the specified floor.
+    @Transactional(readOnly = true)
+    public List<MapPathResponse> getPathsByFloor(Integer floor) {
+
+        return mapPathRepository
+                .findByStartNode_FloorAndEndNode_Floor(floor, floor)
                 .stream()
                 .map(MapPathResponse::from)
                 .toList();
@@ -84,6 +100,9 @@ public class MapPathService {
 
         MapNode endNode =
                 findNodeById(request.getEndNodeId());
+
+        // Validate whether this connection can cross floors.
+        validateFloorTransition(startNode, endNode);
 
         existingPath.setStartNode(startNode);
         existingPath.setEndNode(endNode);
@@ -136,6 +155,36 @@ public class MapPathService {
 
             throw new IllegalArgumentException(
                     "Starting node and ending node must be different."
+            );
+        }
+    }
+
+    // Validate connections between different floors.
+    private void validateFloorTransition(
+            MapNode startNode,
+            MapNode endNode) {
+
+        // Same-floor connections do not need transition validation.
+        if (Objects.equals(startNode.getFloor(), endNode.getFloor())) {
+            return;
+        }
+
+        String startType = startNode.getNodeType();
+        String endType = endNode.getNodeType();
+
+        boolean validStairConnection =
+                "STAIRS".equalsIgnoreCase(startType)
+                        && "STAIRS".equalsIgnoreCase(endType);
+
+        boolean validElevatorConnection =
+                "ELEVATOR".equalsIgnoreCase(startType)
+                        && "ELEVATOR".equalsIgnoreCase(endType);
+
+        if (!validStairConnection && !validElevatorConnection) {
+
+            throw new IllegalArgumentException(
+                    "Cross-floor connections must connect "
+                            + "STAIRS nodes or ELEVATOR nodes."
             );
         }
     }

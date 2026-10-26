@@ -21,6 +21,14 @@ public class CampusMapPathQueryController {
         return mapPathService.getAllPaths();
     }
 
+    // Retrieve connections where both nodes belong to a particular floor.
+    @GetMapping("/floor/{floor}")
+    public List<MapPathResponse> getPathsByFloor(
+            @PathVariable Integer floor) {
+
+        return mapPathService.getPathsByFloor(floor);
+    }
+
     // Retrieve one connection by its ID.
     @GetMapping("/{id}")
     public MapPathResponse getPathById(@PathVariable Long id) {

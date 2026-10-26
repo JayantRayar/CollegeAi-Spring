@@ -43,6 +43,16 @@ public class MapNodeService {
                 .toList();
     }
 
+    // Retrieve all map nodes belonging to a particular floor.
+    @Transactional(readOnly = true)
+    public List<MapNodeResponse> getNodesByFloor(Integer floor) {
+
+        return mapNodeRepository.findByFloor(floor)
+                .stream()
+                .map(MapNodeResponse::from)
+                .toList();
+    }
+
     // Retrieve a map node by ID.
     @Transactional(readOnly = true)
     public MapNodeResponse getNodeById(Long id) {

@@ -8,11 +8,9 @@ import java.util.List;
 
 public interface MapNodeRepository extends JpaRepository<MapNode, Long> {
 
-    /*
-     * Finds all map nodes associated with a campus location.
-     *
-     * One campus location can have multiple map nodes,
-     * such as multiple entrances or access points.
-     */
+    // Find all map nodes associated with a campus location.
     List<MapNode> findByCampusLocation_Id(Long campusLocationId);
+
+    // Find all map nodes belonging to a particular floor.
+    List<MapNode> findByFloor(Integer floor);
 }
