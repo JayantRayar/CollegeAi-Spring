@@ -1,3 +1,4 @@
+
 package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.DocumentChunk;
@@ -39,6 +40,7 @@ public class DocumentChunkingService {
             String pageText,
             String previousPageText,
             Long documentId,
+            Long indexVersionId,
             String documentName,
             int pageNumber,
             AtomicInteger chunkCounter
@@ -60,8 +62,7 @@ public class DocumentChunkingService {
 
             String previousPageContext =
                     previousPageText.substring(
-                            previousPageText.length()
-                                    - contextLength
+                            previousPageText.length() - contextLength
                     );
 
             combinedText =
@@ -72,8 +73,7 @@ public class DocumentChunkingService {
                             + pageText;
         }
 
-        Document document =
-                new Document(combinedText);
+        Document document = new Document(combinedText);
 
         List<Document> chunks =
                 splitter.apply(List.of(document));
@@ -84,8 +84,11 @@ public class DocumentChunkingService {
                     int chunkNumber =
                             chunkCounter.getAndIncrement();
 
+                    // Include version ID to prevent collisions
+                    // between chunks belonging to different versions.
                     String chunkId =
                             "document-" + documentId
+                                    + "-version-" + indexVersionId
                                     + "-page-" + pageNumber
                                     + "-chunk-" + chunkNumber;
 
@@ -93,6 +96,7 @@ public class DocumentChunkingService {
                             chunkId,
                             chunk.getText(),
                             documentId,
+                            indexVersionId,
                             documentName,
                             pageNumber,
                             chunkNumber

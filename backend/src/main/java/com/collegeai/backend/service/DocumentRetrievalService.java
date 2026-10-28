@@ -1,3 +1,4 @@
+
 package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.RetrievedChunk;
@@ -5,8 +6,9 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
 import java.util.List;
 import java.util.Map;
 
@@ -14,27 +16,47 @@ import java.util.Map;
 public class DocumentRetrievalService {
 
     private final VectorStore vectorStore;
+    private final DocumentIndexVersionService documentIndexVersionService;
 
     private final int topK;
     private final double similarityThreshold;
 
     public DocumentRetrievalService(
             @Lazy VectorStore vectorStore,
+            DocumentIndexVersionService documentIndexVersionService,
             @Value("${rag.retrieval.top-k:5}") int topK,
             @Value("${rag.retrieval.similarity-threshold:0.50}") double similarityThreshold
     ) {
         this.vectorStore = vectorStore;
+        this.documentIndexVersionService = documentIndexVersionService;
         this.topK = topK;
         this.similarityThreshold = similarityThreshold;
     }
 
+    /**
+     * Searches only chunks belonging to ACTIVE index versions.
+     */
     public List<RetrievedChunk> search(String query) {
+
+        // Get all currently active index version IDs.
+        List<Long> activeVersionIds =
+                documentIndexVersionService.getActiveVersionIds();
+
+        // No active versions means no eligible college knowledge.
+        if (activeVersionIds.isEmpty()) {
+            return List.of();
+        }
+
+        // Restrict ChromaDB search to active versions.
+        String versionFilter =
+                "indexVersionId in " + activeVersionIds;
 
         SearchRequest searchRequest =
                 SearchRequest.builder()
                         .query(query)
                         .topK(topK)
                         .similarityThreshold(similarityThreshold)
+                        .filterExpression(versionFilter)
                         .build();
 
         List<Document> documents =
@@ -45,6 +67,9 @@ public class DocumentRetrievalService {
                 .toList();
     }
 
+    /**
+     * Converts a ChromaDB document into a RetrievedChunk.
+     */
     private RetrievedChunk convertToRetrievedChunk(Document document) {
 
         Map<String, Object> metadata = document.getMetadata();
@@ -105,7 +130,10 @@ public class DocumentRetrievalService {
         return text;
     }
 
-    private Object requireMetadataValue(Map<String, Object> metadata, String key) {
+    private Object requireMetadataValue(
+            Map<String, Object> metadata,
+            String key
+    ) {
 
         if (metadata == null
                 || !metadata.containsKey(key)
@@ -116,7 +144,10 @@ public class DocumentRetrievalService {
         return metadata.get(key);
     }
 
-    private IllegalStateException invalidMetadata(String key, String expected) {
+    private IllegalStateException invalidMetadata(
+            String key,
+            String expected
+    ) {
 
         return new IllegalStateException(
                 "Invalid ChromaDB document metadata: '"

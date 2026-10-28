@@ -1,18 +1,12 @@
+
 package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.DocumentChunk;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.filter.Filter;
-import org.springframework.ai.vectorstore.filter.Filter.Expression;
-import org.springframework.ai.vectorstore.filter.Filter.ExpressionType;
-import org.springframework.ai.vectorstore.filter.Filter.Key;
-import org.springframework.ai.vectorstore.filter.Filter.Value;
 
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +25,10 @@ public class DocumentVectorStoreService {
         this.vectorStore = vectorStore;
     }
 
+    /**
+     * Converts document chunks into vector documents
+     * and stores them in ChromaDB.
+     */
     public void storeChunks(List<DocumentChunk> chunks) {
 
         if (chunks.isEmpty()) {
@@ -42,10 +40,11 @@ public class DocumentVectorStoreService {
                 .toList();
 
         vectorStore.add(documents);
-
-
     }
 
+    /**
+     * Deletes specific vectors using their IDs.
+     */
     public void deleteChunks(List<String> chunkIds) {
 
         if (chunkIds.isEmpty()) {
@@ -55,6 +54,12 @@ public class DocumentVectorStoreService {
         vectorStore.delete(chunkIds);
     }
 
+    /**
+     * Deletes all vectors belonging to a document.
+     *
+     * Retained for existing deletion functionality.
+     * Version-specific deletion will be added separately.
+     */
     public void deleteDocumentChunks(Long documentId) {
 
         Filter.Expression filterExpression =
@@ -67,14 +72,41 @@ public class DocumentVectorStoreService {
         vectorStore.delete(filterExpression);
     }
 
-    private Document convertToVectorDocument(
-            DocumentChunk chunk) {
+    /**
+     * Deletes vectors belonging to a specific index version.
+     *
+     * This allows us to remove an old or failed version
+     * without deleting vectors from other versions.
+     */
+    public void deleteVersionChunks(Long indexVersionId) {
+
+        Filter.Expression filterExpression =
+                new Filter.Expression(
+                        Filter.ExpressionType.EQ,
+                        new Filter.Key("indexVersionId"),
+                        new Filter.Value(indexVersionId)
+                );
+
+        vectorStore.delete(filterExpression);
+    }
+
+    /**
+     * Converts a DocumentChunk into a Spring AI Document
+     * with metadata required for filtering and citations.
+     */
+    private Document convertToVectorDocument(DocumentChunk chunk) {
 
         Map<String, Object> metadata = new HashMap<>();
 
         metadata.put(
                 "documentId",
                 chunk.getDocumentId()
+        );
+
+        // Identifies the index version this chunk belongs to.
+        metadata.put(
+                "indexVersionId",
+                chunk.getIndexVersionId()
         );
 
         metadata.put(

@@ -1,6 +1,9 @@
- package com.collegeai.backend.service;
+
+package com.collegeai.backend.service;
+
 import com.collegeai.backend.dto.DocumentChunk;
 import com.collegeai.backend.entity.Document;
+import com.collegeai.backend.entity.DocumentIndexVersion;
 import com.collegeai.backend.entity.DocumentStatus;
 import com.collegeai.backend.exception.DocumentNotFoundException;
 import com.collegeai.backend.exception.DocumentProcessingException;
@@ -11,27 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Handles the complete document processing pipeline.
- *
- * PDF:
- * Cloudinary
- *     ↓
- * PDF download
- *     ↓
- * PDF text extraction
- *     ↓
- * Page-based text
- *     ↓
- * Context-aware chunking
- *     ↓
- * Remove old vectors
- *     ↓
- * Store fresh vectors
- *
- * This service also manages the document's
- * processing lifecycle status.
- */
 @Service
 public class DocumentProcessingService {
 
@@ -41,6 +23,8 @@ public class DocumentProcessingService {
     private final DocumentChunkingService documentChunkingService;
     private final DocumentVectorStoreService documentVectorStoreService;
     private final CloudinaryService cloudinaryService;
+    private final DocumentIndexVersionService documentIndexVersionService;
+    private final ChromaIndexVerificationService chromaIndexVerificationService;
 
     public DocumentProcessingService(
             DocumentRepository documentRepository,
@@ -48,7 +32,9 @@ public class DocumentProcessingService {
             PdfTextExtractionService pdfTextExtractionService,
             DocumentChunkingService documentChunkingService,
             DocumentVectorStoreService documentVectorStoreService,
-            CloudinaryService cloudinaryService
+            CloudinaryService cloudinaryService,
+            DocumentIndexVersionService documentIndexVersionService,
+            ChromaIndexVerificationService chromaIndexVerificationService
     ) {
         this.documentRepository = documentRepository;
         this.pdfDownloadService = pdfDownloadService;
@@ -56,74 +42,62 @@ public class DocumentProcessingService {
         this.documentChunkingService = documentChunkingService;
         this.documentVectorStoreService = documentVectorStoreService;
         this.cloudinaryService = cloudinaryService;
+        this.documentIndexVersionService = documentIndexVersionService;
+        this.chromaIndexVerificationService = chromaIndexVerificationService;
     }
 
     /**
-     * Downloads a PDF, extracts its text, creates chunks,
-     * removes old vectors, and stores newly generated vectors.
-     *
-     * Processing lifecycle:
-     *
-     * UPLOADED
-     *     ↓
-     * PROCESSING
-     *     ↓
-     * PROCESSED
-     *
-     * If anything fails:
-     *
-     * PROCESSING
-     *     ↓
-     * FAILED
+     * Downloads a PDF, extracts its text, creates version-specific chunks,
+     * stores them, verifies them, and activates the new index version.
      */
     public List<DocumentChunk> processDocument(Long documentId) {
 
-        Document document =
-                documentRepository.findById(documentId)
-                        .orElseThrow(() ->
-                                new DocumentNotFoundException(
-                                        "Document not found with id: "
-                                                + documentId
-                                )
-                        );
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() ->
+                        new DocumentNotFoundException(
+                                "Document not found with id: " + documentId
+                        )
+                );
 
         document.setStatus(DocumentStatus.PROCESSING);
         documentRepository.save(document);
 
+        Long indexVersionId = null;
+
         try {
 
-            byte[] pdfBytes =
-                    pdfDownloadService.downloadPdf(
-                            document.getSecureUrl()
-                    );
+            // Create a new staging index version.
+            DocumentIndexVersion indexVersion =
+                    documentIndexVersionService.createStagingVersion(documentId);
 
+            indexVersionId = indexVersion.getId();
+
+            // Download the PDF.
+            byte[] pdfBytes =
+                    pdfDownloadService.downloadPdf(document.getSecureUrl());
+
+            // Extract text page by page.
             List<PdfTextExtractionService.ExtractedPage> pages =
                     pdfTextExtractionService.extractPages(pdfBytes);
 
-            List<DocumentChunk> chunks =
-                    new ArrayList<>();
-
-            AtomicInteger chunkCounter =
-                    new AtomicInteger(1);
+            List<DocumentChunk> chunks = new ArrayList<>();
+            AtomicInteger chunkCounter = new AtomicInteger(1);
 
             String previousPageText = null;
+            String documentName = document.getOriginalFilename();
 
-            String documentName =
-                    document.getOriginalFilename();
-
+            // Create chunks associated with this index version.
             for (PdfTextExtractionService.ExtractedPage page : pages) {
 
-                int pageNumber =
-                        page.getPageNumber();
-
-                String pageText =
-                        page.getText();
+                int pageNumber = page.getPageNumber();
+                String pageText = page.getText();
 
                 chunks.addAll(
                         documentChunkingService.createChunks(
                                 pageText,
                                 previousPageText,
                                 documentId,
+                                indexVersionId,
                                 documentName,
                                 pageNumber,
                                 chunkCounter
@@ -133,20 +107,57 @@ public class DocumentProcessingService {
                 previousPageText = pageText;
             }
 
-            documentVectorStoreService.deleteDocumentChunks(
-                    documentId
-            );
+            // Prevent an empty index from becoming active.
+            if (chunks.isEmpty()) {
+                throw new IllegalStateException(
+                        "PDF processing produced no text chunks."
+                );
+            }
 
-            documentVectorStoreService.storeChunks(
+            // Store the new version's chunks in ChromaDB.
+            documentVectorStoreService.storeChunks(chunks);
+
+            // Verify that every expected chunk was stored successfully.
+            chromaIndexVerificationService.verifyChunks(
+                    indexVersionId,
                     chunks
             );
 
+            // Update document status before activation.
             document.setStatus(DocumentStatus.PROCESSED);
             documentRepository.save(document);
+
+            // Activate only after successful storage and verification.
+            documentIndexVersionService.activateVersion(indexVersionId);
 
             return chunks;
 
         } catch (Exception e) {
+
+            if (indexVersionId != null) {
+
+                // Mark the staging version as failed.
+                try {
+                    documentIndexVersionService.markVersionFailed(
+                            indexVersionId
+                    );
+                } catch (Exception cleanupException) {
+                    e.addSuppressed(cleanupException);
+                }
+
+                // Delete vectors only if the version is still safe to clean up.
+                try {
+                    if (documentIndexVersionService
+                            .isSafeToDeleteVersionChunks(indexVersionId)) {
+
+                        documentVectorStoreService.deleteVersionChunks(
+                                indexVersionId
+                        );
+                    }
+                } catch (Exception cleanupException) {
+                    e.addSuppressed(cleanupException);
+                }
+            }
 
             document.setStatus(DocumentStatus.FAILED);
             documentRepository.save(document);
@@ -159,51 +170,22 @@ public class DocumentProcessingService {
     }
 
     /**
-     * Deletes a document and all associated data.
-     *
-     * Deletion flow:
-     *
-     * PostgreSQL
-     *     ↓
-     * Verify document exists
-     *     ↓
-     * ChromaDB
-     *     ↓
-     * Delete vector data
-     *     ↓
-     * Cloudinary
-     *     ↓
-     * Delete original PDF
-     *     ↓
-     * PostgreSQL
-     *     ↓
-     * Delete document metadata
+     * Deletes a document and its associated data.
+     * Version-aware deletion will be implemented separately.
      */
     public void deleteDocument(Long documentId) {
 
-        // Make sure the document exists before deleting anything.
-        Document document =
-                documentRepository.findById(documentId)
-                        .orElseThrow(() ->
-                                new DocumentNotFoundException(
-                                        "Document not found with id: "
-                                                + documentId
-                                )
-                        );
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() ->
+                        new DocumentNotFoundException(
+                                "Document not found with id: " + documentId
+                        )
+                );
 
-        // Remove all ChromaDB vectors belonging
-        // to this document.
-        documentVectorStoreService.deleteDocumentChunks(
-                documentId
-        );
+        documentVectorStoreService.deleteDocumentChunks(documentId);
 
-        // Remove the original PDF from Cloudinary.
-        cloudinaryService.deleteFile(
-                document.getPublicId()
-        );
+        cloudinaryService.deleteFile(document.getPublicId());
 
-        // Remove the document metadata from PostgreSQL.
         documentRepository.delete(document);
     }
 }
-
