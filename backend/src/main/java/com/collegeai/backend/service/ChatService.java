@@ -2,14 +2,6 @@
 package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.*;
-import com.collegeai.backend.entity.ChatConversation;
-import com.collegeai.backend.entity.ChatMessage;
-import com.collegeai.backend.entity.MessageRole;
-import com.collegeai.backend.entity.User;
-import com.collegeai.backend.exception.ResourceNotFoundException;
-import com.collegeai.backend.repository.ChatConversationRepository;
-import com.collegeai.backend.repository.ChatMessageRepository;
-import com.collegeai.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -18,7 +10,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 
 @Service
@@ -31,131 +22,56 @@ public class ChatService {
     private final AnswerabilityService answerabilityService;
     private final ChatClient chatClient;
     private final AnswerGroundingService answerGroundingService;
-
-    private final UserRepository userRepository;
-    private final ChatConversationRepository chatConversationRepository;
-    private final ChatMessageRepository chatMessageRepository;
+    private final ChatPersistenceService chatPersistenceService;
 
     public ChatService(
             DocumentRetrievalService documentRetrievalService,
             AnswerabilityService answerabilityService,
             AnswerGroundingService answerGroundingService,
             @Qualifier("googleGenAiChatModel") ChatModel chatModel,
-            UserRepository userRepository,
-            ChatConversationRepository chatConversationRepository,
-            ChatMessageRepository chatMessageRepository) {
+            ChatPersistenceService chatPersistenceService) {
 
         this.documentRetrievalService = documentRetrievalService;
         this.answerabilityService = answerabilityService;
         this.answerGroundingService = answerGroundingService;
         this.chatClient = ChatClient.create(chatModel);
-        this.userRepository = userRepository;
-        this.chatConversationRepository = chatConversationRepository;
-        this.chatMessageRepository = chatMessageRepository;
+        this.chatPersistenceService = chatPersistenceService;
     }
 
+    // Fetch conversation messages.
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getConversationMessages(
             Long conversationId,
             String userEmail) {
 
-        // Find the logged-in user using their email from the JWT.
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found"));
-
-        // Verify that this conversation belongs to the logged-in user.
-        ChatConversation conversation = chatConversationRepository
-                .findByIdAndUserId(conversationId, user.getId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Conversation not found"));
-
-        // Fetch all messages in chronological order and convert them to DTOs.
-        return chatMessageRepository
-                .findAllByConversationIdOrderByCreatedAtAscIdAsc(conversation.getId())
-                .stream()
-                .map(ChatMessageResponse::from)
-                .toList();
+        return chatPersistenceService.getConversationMessages(
+                conversationId,
+                userEmail
+        );
     }
 
+    // Fetch all conversations belonging to the logged-in user.
     @Transactional(readOnly = true)
     public List<ChatConversationResponse> getUserConversations(
             String userEmail) {
 
-        // Find the currently authenticated user.
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found"));
-
-        // Fetch only this user's conversations, newest activity first.
-        return chatConversationRepository
-                .findAllByUserIdOrderByUpdatedAtDesc(user.getId())
-                .stream()
-                .map(ChatConversationResponse::from)
-                .toList();
+        return chatPersistenceService.getUserConversations(userEmail);
     }
 
-    @Transactional
     public ChatResponse chat(ChatRequest request, String userEmail) {
 
         String query = request.getQuery().trim();
 
-        // Step 1: Identify the authenticated user using JWT email.
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found"));
+        // Step 1: Save the user's question in its own transaction.
+        Long conversationId =
+                chatPersistenceService.saveUserQuestion(request, userEmail);
 
-        // Step 2: Create a new conversation or retrieve an existing one.
-        ChatConversation conversation;
-
-        if (request.getConversationId() == null) {
-
-            conversation = new ChatConversation();
-
-            conversation.setUser(user);
-
-            // Derive the title from the first question.
-            conversation.setTitle(
-                    query.substring(0, Math.min(query.length(), 80))
-            );
-
-            OffsetDateTime now = OffsetDateTime.now();
-
-            conversation.setCreatedAt(now);
-            conversation.setUpdatedAt(now);
-
-            conversation = chatConversationRepository.save(conversation);
-
-        } else {
-
-            conversation = chatConversationRepository
-                    .findByIdAndUserId(
-                            request.getConversationId(),
-                            user.getId()
-                    )
-                    .orElseThrow(() ->
-                            new ResourceNotFoundException(
-                                    "Conversation not found"
-                            ));
-        }
-
-        // Step 3: Save the user's question.
-        ChatMessage userMessage = new ChatMessage();
-
-        userMessage.setConversation(conversation);
-        userMessage.setRole(MessageRole.USER);
-        userMessage.setContent(query);
-        userMessage.setCreatedAt(OffsetDateTime.now());
-
-        chatMessageRepository.save(userMessage);
-
-        // Step 4: Always search the college PDF knowledge base first.
-        // If ChromaDB fails, the exception must propagate.
-        // General AI fallback must never run after a retrieval failure.
+        // Step 2: Search the college PDF knowledge base first.
+        // Retrieval failures must propagate, never trigger general AI fallback.
         List<RetrievedChunk> retrievedChunks =
                 documentRetrievalService.search(query);
 
-        // Step 5: Convert retrieved chunks into source information.
+        // Step 3: Convert retrieved chunks into source information.
         List<ChatSource> sources = retrievedChunks.stream()
                 .map(ChatSource::from)
                 .toList();
@@ -163,7 +79,7 @@ public class ChatService {
         String answer;
         String answerType;
 
-        // Step 6: Evaluate retrieved context if relevant chunks exist.
+        // Step 4: Evaluate retrieved context when relevant chunks exist.
         if (!retrievedChunks.isEmpty()) {
 
             String context = buildContext(retrievedChunks);
@@ -198,18 +114,17 @@ public class ChatService {
                 answerType = "COLLEGE_KNOWLEDGE";
 
                 return saveAndReturnResponse(
-                        conversation,
+                        conversationId,
                         answer,
                         answerType,
                         sources
                 );
             }
 
-            // Step 7: Apply the answerability decision.
+            // Step 5: Apply the answerability decision.
             if (evaluation.getStatus() ==
                     AnswerabilityStatus.NOT_ANSWERABLE) {
 
-                // Do not use Gemini's general knowledge here.
                 answer = "The requested information is not available "
                         + "in the college documents.";
 
@@ -217,7 +132,6 @@ public class ChatService {
 
             } else {
 
-                // ANSWERABLE and PARTIALLY_ANSWERABLE:
                 // Generate an answer using only retrieved PDF context.
                 answerType = "COLLEGE_KNOWLEDGE";
 
@@ -284,7 +198,7 @@ public class ChatService {
                                 + "the available college information.";
                     }
 
-                    // Verify that the generated answer is supported by college documents.
+                    // Verify that the answer is supported by college documents.
                     GroundingResponse groundingResult =
                             answerGroundingService.verifyAnswer(
                                     query,
@@ -292,7 +206,8 @@ public class ChatService {
                                     answer
                             );
 
-                    if (groundingResult == null || !groundingResult.isGrounded()) {
+                    if (groundingResult == null ||
+                            !groundingResult.isGrounded()) {
 
                         logger.warn(
                                 "Generated college answer failed grounding verification. Reason: {}",
@@ -305,6 +220,7 @@ public class ChatService {
                                 + "against the available college documents. "
                                 + "Please try rephrasing your question.";
                     }
+
                 } catch (Exception e) {
 
                     logger.error(
@@ -312,37 +228,60 @@ public class ChatService {
                             e
                     );
 
-                    answer = buildFallbackAnswer(retrievedChunks);
+                    answer = buildFallbackAnswer();
                 }
             }
 
         } else {
 
-            // Step 8: Use general Gemini knowledge only when
-            // no sufficiently relevant college chunks are retrieved.
+            // Step 6: No relevant PDF chunks found.
+            // Use BMSCE-aware general Gemini fallback.
             answerType = "GENERAL_AI";
 
             try {
 
                 answer = chatClient.prompt()
                         .system("""
-                                You are a helpful general AI assistant.
+                                You are the official AI College Assistant for
+                                BMS College of Engineering (BMSCE), Bengaluru.
 
-                                Answer the user's question accurately,
-                                clearly, and concisely.
+                                IMPORTANT:
+                                The user is interacting with the BMSCE
+                                College Assistant. Never ask the user which
+                                college or university they are referring to.
 
-                                Do not invent personal information,
-                                private institutional records, or
-                                guaranteed future outcomes.
+                                Your responsibilities include helping users with:
+                                - Courses and departments
+                                - Admission procedures
+                                - College fees
+                                - CET and PGCET information
+                                - Hostel and campus facilities
+                                - Placements and college services
 
-                                Do not claim that information comes
-                                from BMSCE documents because no
-                                college-document chunks were retrieved.
+                                RESPONSE RULES:
 
-                                If the user asks for an individual
-                                outcome that cannot be known with
-                                certainty, explain the uncertainty
-                                clearly.
+                                1. College-specific questions must be
+                                   understood in the context of BMSCE.
+
+                                2. Do not invent BMSCE-specific facts,
+                                   fee amounts, admission details,
+                                   cutoffs or statistics.
+
+                                3. If the requested information is not
+                                   available in the retrieved college
+                                   documents, clearly explain that it
+                                   could not be found in the available
+                                   BMSCE knowledge base.
+
+                                4. Never ask the user to specify the college.
+
+                                5. You may answer general educational
+                                   questions using your general knowledge.
+
+                                6. Clearly distinguish general information
+                                   from verified BMSCE-specific information.
+
+                                7. Keep answers concise, clear and helpful.
 
                                 Answer only what the user asked.
                                 """)
@@ -367,43 +306,23 @@ public class ChatService {
             }
         }
 
-        // Step 9: Save the assistant's answer and its sources.
+        // Step 7: Save the assistant's response in a separate transaction.
         return saveAndReturnResponse(
-                conversation,
+                conversationId,
                 answer,
                 answerType,
                 sources
         );
     }
 
-    /**
-     * Saves the assistant message, updates conversation activity,
-     * and returns the chat response.
-     */
     private ChatResponse saveAndReturnResponse(
-            ChatConversation conversation,
+            Long conversationId,
             String answer,
             String answerType,
             List<ChatSource> sources) {
 
-        ChatMessage assistantMessage = new ChatMessage();
-
-        assistantMessage.setConversation(conversation);
-        assistantMessage.setRole(MessageRole.ASSISTANT);
-        assistantMessage.setContent(answer);
-        assistantMessage.setAnswerType(answerType);
-        assistantMessage.setSources(sources);
-        assistantMessage.setCreatedAt(OffsetDateTime.now());
-
-        chatMessageRepository.save(assistantMessage);
-
-        // Update the conversation's last activity time.
-        conversation.setUpdatedAt(OffsetDateTime.now());
-
-        chatConversationRepository.save(conversation);
-
-        return new ChatResponse(
-                conversation.getId(),
+        return chatPersistenceService.saveAssistantResponse(
+                conversationId,
                 answer,
                 answerType,
                 sources
@@ -411,10 +330,9 @@ public class ChatService {
     }
 
     /**
-     * Returns a safe fallback message when Gemini
-     * is unavailable while processing college information.
+     * Safe fallback when Gemini cannot generate a college answer.
      */
-    private String buildFallbackAnswer(List<RetrievedChunk> chunks) {
+    private String buildFallbackAnswer() {
 
         return "I'm temporarily unable to generate an answer. "
                 + "Please try again shortly.";

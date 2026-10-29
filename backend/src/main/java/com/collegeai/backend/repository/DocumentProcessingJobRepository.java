@@ -13,6 +13,7 @@ import java.util.Optional;
 public interface DocumentProcessingJobRepository
         extends JpaRepository<DocumentProcessingJob, Long> {
 
+    void deleteAllByDocument_Id(Long documentId);
     boolean existsByDocument_IdAndStatusIn(
             Long documentId,
             Collection<DocumentProcessingJobStatus> statuses

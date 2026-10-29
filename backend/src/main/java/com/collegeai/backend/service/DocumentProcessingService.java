@@ -7,9 +7,11 @@ import com.collegeai.backend.entity.DocumentIndexVersion;
 import com.collegeai.backend.entity.DocumentStatus;
 import com.collegeai.backend.exception.DocumentNotFoundException;
 import com.collegeai.backend.exception.DocumentProcessingException;
+import com.collegeai.backend.repository.DocumentIndexVersionRepository;
 import com.collegeai.backend.repository.DocumentRepository;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
+import com.collegeai.backend.repository.DocumentProcessingJobRepository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -18,6 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class DocumentProcessingService {
 
     private final DocumentRepository documentRepository;
+    private final DocumentProcessingJobRepository documentProcessingJobRepository;
+    private final DocumentIndexVersionRepository documentIndexVersionRepository;
     private final PdfDownloadService pdfDownloadService;
     private final PdfTextExtractionService pdfTextExtractionService;
     private final DocumentChunkingService documentChunkingService;
@@ -34,10 +38,14 @@ public class DocumentProcessingService {
             DocumentVectorStoreService documentVectorStoreService,
             CloudinaryService cloudinaryService,
             DocumentIndexVersionService documentIndexVersionService,
-            ChromaIndexVerificationService chromaIndexVerificationService
+            ChromaIndexVerificationService chromaIndexVerificationService,
+            DocumentIndexVersionRepository documentIndexVersionRepository,
+            DocumentProcessingJobRepository documentProcessingJobRepository
     ) {
         this.documentRepository = documentRepository;
+        this.documentIndexVersionRepository = documentIndexVersionRepository;
         this.pdfDownloadService = pdfDownloadService;
+        this.documentProcessingJobRepository = documentProcessingJobRepository;
         this.pdfTextExtractionService = pdfTextExtractionService;
         this.documentChunkingService = documentChunkingService;
         this.documentVectorStoreService = documentVectorStoreService;
@@ -170,9 +178,9 @@ public class DocumentProcessingService {
     }
 
     /**
-     * Deletes a document and its associated data.
-     * Version-aware deletion will be implemented separately.
+     * Deletes a document and all its associated data.
      */
+    @Transactional
     public void deleteDocument(Long documentId) {
 
         Document document = documentRepository.findById(documentId)
@@ -182,10 +190,24 @@ public class DocumentProcessingService {
                         )
                 );
 
+        // Prevent deletion while the document is being processed.
+        if (document.getStatus() == DocumentStatus.PROCESSING) {
+            throw new IllegalStateException(
+                    "Cannot delete a document while it is being processed."
+            );
+        }
+
+        // Step 1: Delete document chunks from ChromaDB.
         documentVectorStoreService.deleteDocumentChunks(documentId);
 
+        // Step 2: Delete the PDF from Cloudinary.
         cloudinaryService.deleteFile(document.getPublicId());
 
+        // Step 3: Delete associated index-version records.
+        documentIndexVersionRepository.deleteAllByDocument_Id(documentId);
+
+        documentProcessingJobRepository.deleteAllByDocument_Id(documentId);
+        // Step 4: Delete the document record from PostgreSQL.
         documentRepository.delete(document);
     }
 }
