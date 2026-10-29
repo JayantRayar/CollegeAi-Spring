@@ -26,6 +26,7 @@ public class DocumentProcessingJobService {
     @Transactional
     public DocumentProcessingJob createJob(Long documentId) {
 
+
         // Find the document that needs processing.
         Document document =
                 documentRepository.findById(documentId)

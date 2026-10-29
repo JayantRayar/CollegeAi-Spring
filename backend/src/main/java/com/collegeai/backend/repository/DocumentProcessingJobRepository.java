@@ -25,4 +25,11 @@ public interface DocumentProcessingJobRepository
             DocumentProcessingJobStatus status,
             LocalDateTime currentTime
     );
+    // Find and lock a processing job whose worker lock has expired.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<DocumentProcessingJob>
+    findFirstByStatusAndLockedAtLessThanEqualOrderByLockedAtAsc(
+            DocumentProcessingJobStatus status,
+            LocalDateTime lockedBefore
+    );
 }
