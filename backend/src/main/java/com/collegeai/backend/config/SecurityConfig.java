@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 @Configuration
 public class SecurityConfig {
+
     private static final Logger logger =
             LoggerFactory.getLogger(SecurityConfig.class);
 
@@ -42,6 +43,7 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
                                 "/api/test/embedding",
+                                "/ws/exotel",
                                 "/error"
                         ).permitAll()
 
