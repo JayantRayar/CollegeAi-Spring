@@ -10,6 +10,10 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Base64;
+
 @Slf4j
 @Component
 public class ExotelVoiceWebSocketHandler extends TextWebSocketHandler {
@@ -18,8 +22,12 @@ public class ExotelVoiceWebSocketHandler extends TextWebSocketHandler {
     private static final String CALL_SID = "callSid";
     private static final String CALLER_NUMBER = "callerNumber";
     private static final String SAMPLE_RATE = "sampleRate";
+    private static final String AUDIO_BUFFER = "audioBuffer";
 
-    // Creates a Jackson ObjectMapper for parsing Exotel JSON messages.
+    // Temporary safety limit: 1 MB of audio per WebSocket session.
+    private static final int MAX_AUDIO_BUFFER_BYTES = 1024 * 1024;
+
+    // Jackson ObjectMapper parses incoming Exotel JSON messages.
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -46,7 +54,7 @@ public class ExotelVoiceWebSocketHandler extends TextWebSocketHandler {
                         handleStartEvent(session, root);
 
                 case "media" ->
-                        log.debug("Received audio packet.");
+                        handleMediaEvent(session, root);
 
                 case "dtmf" ->
                         log.info("Received DTMF event.");
@@ -88,6 +96,12 @@ public class ExotelVoiceWebSocketHandler extends TextWebSocketHandler {
         session.getAttributes().put(CALLER_NUMBER, callerNumber);
         session.getAttributes().put(SAMPLE_RATE, sampleRate);
 
+        // Create a separate audio buffer for this call.
+        session.getAttributes().put(
+                AUDIO_BUFFER,
+                new ByteArrayOutputStream()
+        );
+
         log.info(
                 "Exotel call started. Stream ID: {}, Call ID: {}, Sample Rate: {}",
                 streamSid,
@@ -96,11 +110,74 @@ public class ExotelVoiceWebSocketHandler extends TextWebSocketHandler {
         );
     }
 
+    private void handleMediaEvent(
+            WebSocketSession session,
+            JsonNode root
+    ) {
+        // Extract the media object from the incoming JSON.
+        JsonNode media = root.path("media");
+
+        // Read the Base64-encoded audio payload.
+        String payload = media.path("payload").asText("");
+
+        // Ignore messages that do not contain an audio payload.
+        if (payload.isBlank()) {
+            log.warn("Received media event without an audio payload.");
+            return;
+        }
+
+        try {
+            // Decode Base64 into raw PCM audio bytes.
+            byte[] audioBytes = Base64.getDecoder().decode(payload);
+
+            // Get the audio buffer belonging to this WebSocket session.
+            ByteArrayOutputStream audioBuffer =
+                    (ByteArrayOutputStream) session.getAttributes()
+                            .get(AUDIO_BUFFER);
+
+            if (audioBuffer == null) {
+                log.warn("Audio received before call initialization.");
+                return;
+            }
+
+            synchronized (audioBuffer) {
+
+                // Prevent unlimited memory usage.
+                if (audioBuffer.size() + audioBytes.length
+                        > MAX_AUDIO_BUFFER_BYTES) {
+
+                    log.warn(
+                            "Audio buffer limit reached for session: {}",
+                            session.getId()
+                    );
+                    return;
+                }
+
+                // Append the decoded packet to this call's buffer.
+                audioBuffer.write(audioBytes);
+
+                log.info(
+                        "Audio packet received. Chunk: {}, Packet bytes: {}, Total buffered bytes: {}",
+                        media.path("chunk").asText("unknown"),
+                        audioBytes.length,
+                        audioBuffer.size()
+                );
+            }
+
+        } catch (IllegalArgumentException exception) {
+            log.error("Invalid Base64 audio payload received.");
+
+        } catch (IOException exception) {
+            log.error("Failed to append audio packet.", exception);
+        }
+    }
+
     private void clearSessionAttributes(WebSocketSession session) {
         session.getAttributes().remove(STREAM_SID);
         session.getAttributes().remove(CALL_SID);
         session.getAttributes().remove(CALLER_NUMBER);
         session.getAttributes().remove(SAMPLE_RATE);
+        session.getAttributes().remove(AUDIO_BUFFER);
     }
 
     @Override
@@ -110,7 +187,10 @@ public class ExotelVoiceWebSocketHandler extends TextWebSocketHandler {
     ) {
         clearSessionAttributes(session);
 
-        log.info("Exotel WebSocket disconnected. Session ID: {}, Status: {}",
-                session.getId(), status);
+        log.info(
+                "Exotel WebSocket disconnected. Session ID: {}, Status: {}",
+                session.getId(),
+                status
+        );
     }
 }
