@@ -24,11 +24,7 @@ public class VoiceConversationService {
             return "I could not hear your question. Please repeat it.";
         }
 
-        log.info(
-                "Processing voice question. Session: {}, Question: {}",
-                sessionId,
-                question
-        );
+        log.info("Processing voice question. Session: {}", sessionId);
 
         String answer = chatService.answerForVoice(question);
 

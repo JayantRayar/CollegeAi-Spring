@@ -43,7 +43,6 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
                                 "/api/test/embedding",
-                                "/ws/exotel",
                                 "/error"
                         ).permitAll()
 
