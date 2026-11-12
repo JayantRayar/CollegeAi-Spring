@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import com.collegeai.backend.exception.DuplicateMapPathException;
 import java.time.LocalDateTime;
+import com.collegeai.backend.exception.VectorStoreException;
 import jakarta.persistence.EntityNotFoundException;
 
 @RestControllerAdvice
@@ -223,6 +224,30 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
+                .body(response);
+    }
+
+    @ExceptionHandler(VectorStoreException.class)
+    public ResponseEntity<ApiErrorResponse> handleVectorStoreException(
+            VectorStoreException exception,
+            HttpServletRequest request) {
+
+        logger.error(
+                "ChromaDB vector store error on request: {}",
+                request.getRequestURI(),
+                exception
+        );
+
+        ApiErrorResponse response =
+                new ApiErrorResponse(
+                        LocalDateTime.now(),
+                        HttpStatus.SERVICE_UNAVAILABLE.value(),
+                        "The knowledge base is temporarily unavailable. Please try again shortly.",
+                        request.getRequestURI()
+                );
+
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(response);
     }
 

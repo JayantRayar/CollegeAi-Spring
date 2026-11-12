@@ -9,11 +9,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
+import com.collegeai.backend.exception.VectorStoreException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class DocumentRetrievalService {
+
+    private static final Logger logger =
+            LoggerFactory.getLogger(DocumentRetrievalService.class);
 
     private final VectorStore vectorStore;
     private final DocumentIndexVersionService documentIndexVersionService;
@@ -59,8 +65,21 @@ public class DocumentRetrievalService {
                         .filterExpression(versionFilter)
                         .build();
 
-        List<Document> documents =
-                vectorStore.similaritySearch(searchRequest);
+        List<Document> documents;
+
+        try {
+            documents = vectorStore.similaritySearch(searchRequest);
+        } catch (Exception e) {
+            logger.error(
+                    "ChromaDB vector store search failed for query. Retrieval unavailable.",
+                    e
+            );
+            throw new VectorStoreException(
+                    "The college knowledge base is temporarily unavailable. " +
+                    "Please try again shortly.",
+                    e
+            );
+        }
 
         return documents.stream()
                 .map(this::convertToRetrievedChunk)
