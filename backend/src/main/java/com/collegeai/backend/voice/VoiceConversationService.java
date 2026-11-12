@@ -1,6 +1,7 @@
 
 package com.collegeai.backend.voice;
 
+import com.collegeai.backend.dto.VoiceChatResponse;
 import com.collegeai.backend.service.ChatService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,21 +19,35 @@ public class VoiceConversationService {
         this.chatService = chatService;
     }
 
-    public String processQuestion(String question, String sessionId) {
+    public VoiceChatResponse processQuestion(
+            String question,
+            String sessionId) {
 
+        // Validate the incoming voice transcription.
         if (question == null || question.isBlank()) {
-            return "I could not hear your question. Please repeat it.";
+            return new VoiceChatResponse(
+                    "I could not hear your question. Please repeat it.",
+                    "ERROR"
+            );
         }
 
-        log.info("Processing voice question. Session: {}", sessionId);
-
-        String answer = chatService.answerForVoice(question);
-
+        // Log the voice session without exposing the user's question.
         log.info(
-                "Voice answer generated. Session: {}",
+                "Processing voice question. Session: {}",
                 sessionId
         );
 
-        return answer;
+        // Reuse the existing PDF-first RAG and Gemini fallback logic.
+        VoiceChatResponse response =
+                chatService.answerForVoice(question);
+
+        // Log the response source.
+        log.info(
+                "Voice answer generated. Session: {}, Source: {}",
+                sessionId,
+                response.getAnswerType()
+        );
+
+        return response;
     }
 }

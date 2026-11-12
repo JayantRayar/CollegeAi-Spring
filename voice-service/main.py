@@ -1,5 +1,6 @@
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
 from speech_to_text import transcribe_audio
 from text_to_speech import generate_speech
 import shutil
@@ -7,6 +8,20 @@ import os
 import uuid
 
 app = FastAPI(title="College AI Voice Service")
+
+# Allow requests from the React frontend.
+frontend_origin = os.getenv(
+    "FRONTEND_ORIGIN",
+    "http://localhost:5173"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[frontend_origin],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 
 @app.get("/")
