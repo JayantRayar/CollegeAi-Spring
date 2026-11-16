@@ -35,6 +35,9 @@ public class OAuth2SuccessHandler
     private static final Logger logger =
             LoggerFactory.getLogger(OAuth2SuccessHandler.class);
 
+    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origin:http://localhost:5173}")
+    private String frontendOrigin;
+
     private final UserRepository userRepository;
 
     private final OAuth2AuthorizationCodeService
@@ -82,7 +85,8 @@ public class OAuth2SuccessHandler
         // Only the temporary authorization code is placed
         // in the URL. The JWT is NOT placed in the URL.
         String frontendUrl =
-                "http://localhost:5173/oauth-success?code="
+                frontendOrigin.replaceAll("/+$", "")
+                        + "/oauth-success?code="
                         + code;
 
         getRedirectStrategy().sendRedirect(

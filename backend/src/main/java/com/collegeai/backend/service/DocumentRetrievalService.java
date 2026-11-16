@@ -2,6 +2,9 @@
 package com.collegeai.backend.service;
 
 import com.collegeai.backend.dto.RetrievedChunk;
+import com.collegeai.backend.exception.VectorStoreException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -9,9 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
-import com.collegeai.backend.exception.VectorStoreException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 
@@ -31,7 +31,8 @@ public class DocumentRetrievalService {
             @Lazy VectorStore vectorStore,
             DocumentIndexVersionService documentIndexVersionService,
             @Value("${rag.retrieval.top-k:5}") int topK,
-            @Value("${rag.retrieval.similarity-threshold:0.50}") double similarityThreshold
+            @Value("${rag.retrieval.similarity-threshold:0.50}")
+            double similarityThreshold
     ) {
         this.vectorStore = vectorStore;
         this.documentIndexVersionService = documentIndexVersionService;
@@ -44,52 +45,78 @@ public class DocumentRetrievalService {
      */
     public List<RetrievedChunk> search(String query) {
 
-        // Get all currently active index version IDs.
-        List<Long> activeVersionIds =
-                documentIndexVersionService.getActiveVersionIds();
-
-        // No active versions means no eligible college knowledge.
-        if (activeVersionIds.isEmpty()) {
-            return List.of();
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Search query cannot be empty."
+            );
         }
-
-        // Restrict ChromaDB search to active versions.
-        String versionFilter =
-                "indexVersionId in " + activeVersionIds;
-
-        SearchRequest searchRequest =
-                SearchRequest.builder()
-                        .query(query)
-                        .topK(topK)
-                        .similarityThreshold(similarityThreshold)
-                        .filterExpression(versionFilter)
-                        .build();
-
-        List<Document> documents;
 
         try {
-            documents = vectorStore.similaritySearch(searchRequest);
+            // Fetch active document index versions.
+            List<Long> activeVersionIds =
+                    documentIndexVersionService.getActiveVersionIds();
+
+            if (activeVersionIds == null) {
+                throw new IllegalStateException(
+                        "Active document versions could not be retrieved."
+                );
+            }
+
+            // No active versions is a valid empty knowledge base.
+            if (activeVersionIds.isEmpty()) {
+                return List.of();
+            }
+
+            // Restrict ChromaDB search to active document versions.
+            String versionFilter =
+                    "indexVersionId in " + activeVersionIds;
+
+            SearchRequest searchRequest =
+                    SearchRequest.builder()
+                            .query(query)
+                            .topK(topK)
+                            .similarityThreshold(similarityThreshold)
+                            .filterExpression(versionFilter)
+                            .build();
+
+            List<Document> documents =
+                    vectorStore.similaritySearch(searchRequest);
+
+            if (documents == null) {
+                throw new IllegalStateException(
+                        "Vector store returned an invalid result."
+                );
+            }
+
+            return documents.stream()
+                    .map(this::convertToRetrievedChunk)
+                    .toList();
+
         } catch (Exception e) {
+
             logger.error(
-                    "ChromaDB vector store search failed for query. Retrieval unavailable.",
+                    "Document retrieval failed. College knowledge base is unavailable.",
                     e
             );
+
             throw new VectorStoreException(
-                    "The college knowledge base is temporarily unavailable. " +
-                    "Please try again shortly.",
+                    "The college knowledge base is temporarily unavailable. "
+                            + "Please try again shortly.",
                     e
             );
         }
-
-        return documents.stream()
-                .map(this::convertToRetrievedChunk)
-                .toList();
     }
 
     /**
      * Converts a ChromaDB document into a RetrievedChunk.
      */
     private RetrievedChunk convertToRetrievedChunk(Document document) {
+
+        if (document == null) {
+            throw new IllegalStateException(
+                    "Vector store returned a null document."
+            );
+        }
 
         Map<String, Object> metadata = document.getMetadata();
 
@@ -108,8 +135,10 @@ public class DocumentRetrievalService {
         );
     }
 
-    private Long requireLong(Map<String, Object> metadata, String key) {
-
+    private Long requireLong(
+            Map<String, Object> metadata,
+            String key
+    ) {
         Object value = requireMetadataValue(metadata, key);
 
         if (!(value instanceof Number number)) {
@@ -119,8 +148,10 @@ public class DocumentRetrievalService {
         return number.longValue();
     }
 
-    private Integer requireInteger(Map<String, Object> metadata, String key) {
-
+    private Integer requireInteger(
+            Map<String, Object> metadata,
+            String key
+    ) {
         Object value = requireMetadataValue(metadata, key);
 
         if (!(value instanceof Number number)) {
@@ -138,8 +169,10 @@ public class DocumentRetrievalService {
         return (int) numericValue;
     }
 
-    private String requireString(Map<String, Object> metadata, String key) {
-
+    private String requireString(
+            Map<String, Object> metadata,
+            String key
+    ) {
         Object value = requireMetadataValue(metadata, key);
 
         if (!(value instanceof String text) || text.isBlank()) {
@@ -153,7 +186,6 @@ public class DocumentRetrievalService {
             Map<String, Object> metadata,
             String key
     ) {
-
         if (metadata == null
                 || !metadata.containsKey(key)
                 || metadata.get(key) == null) {
@@ -167,7 +199,6 @@ public class DocumentRetrievalService {
             String key,
             String expected
     ) {
-
         return new IllegalStateException(
                 "Invalid ChromaDB document metadata: '"
                         + key + "' must be " + expected + "."

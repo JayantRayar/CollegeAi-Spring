@@ -26,10 +26,10 @@ public class DocumentProcessingJobService {
     @Transactional
     public DocumentProcessingJob createJob(Long documentId) {
 
-
-        // Find the document that needs processing.
+        // Lock the document row so concurrent requests for
+        // this document cannot create duplicate active jobs.
         Document document =
-                documentRepository.findById(documentId)
+                documentRepository.findByIdForUpdate(documentId)
                         .orElseThrow(() ->
                                 new DocumentNotFoundException(
                                         "Document not found with id: "
@@ -37,7 +37,8 @@ public class DocumentProcessingJobService {
                                 )
                         );
 
-        // Prevent duplicate active processing jobs.
+        // Check for an existing pending or processing job
+        // while holding the document lock.
         boolean activeJobExists =
                 jobRepository.existsByDocument_IdAndStatusIn(
                         documentId,
@@ -62,7 +63,6 @@ public class DocumentProcessingJobService {
         job.setStatus(DocumentProcessingJobStatus.PENDING);
         job.setNextAttemptAt(LocalDateTime.now());
 
-        // Save the job in PostgreSQL.
         return jobRepository.save(job);
     }
 }

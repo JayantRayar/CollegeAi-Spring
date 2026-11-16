@@ -8,12 +8,6 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-/**
- * Verifies whether every factual claim in a generated college answer
- * is supported by the retrieved college document context.
- *
- * This service uses Gemini for grounding verification.
- */
 @Service
 @Slf4j
 public class AnswerGroundingService {
@@ -27,19 +21,23 @@ public class AnswerGroundingService {
     }
 
     /**
-     * Checks whether the generated answer is supported by
-     * the supplied college document context.
-     *
-     * @param question       user's original question
-     * @param context        retrieved college document context
-     * @param generatedAnswer answer generated using retrieved context
-     * @return grounding verification result
+     * Verifies whether every factual claim in a generated answer
+     * is supported by the retrieved college document context.
      */
     public GroundingResponse verifyAnswer(
             String question,
             String context,
             String generatedAnswer
     ) {
+
+        if (question == null || question.isBlank()
+                || context == null || context.isBlank()
+                || generatedAnswer == null || generatedAnswer.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Question, context and generated answer are required."
+            );
+        }
 
         String systemPrompt = """
                 You are a strict answer-grounding verifier.
@@ -49,6 +47,7 @@ public class AnswerGroundingService {
                 provided college document context.
 
                 RULES:
+
                 1. Use ONLY the provided college document context.
                 2. Do not use your general knowledge.
                 3. Do not assume or infer facts that are not explicitly
@@ -62,7 +61,7 @@ public class AnswerGroundingService {
                    the documents is acceptable.
                 8. Return a structured response containing:
                    - grounded: true or false
-                   - reason: a short explanation.
+                   - reason: a non-empty short explanation.
 
                 Be strict. When uncertain, return grounded=false.
                 """;
@@ -95,9 +94,16 @@ public class AnswerGroundingService {
                 .entity(GroundingResponse.class);
 
         if (response == null) {
-            log.error("Grounding verifier returned a null response.");
             throw new IllegalStateException(
                     "Grounding verification returned no result."
+            );
+        }
+
+        if (response.getReason() == null
+                || response.getReason().isBlank()) {
+
+            throw new IllegalStateException(
+                    "Grounding verification returned no explanation."
             );
         }
 

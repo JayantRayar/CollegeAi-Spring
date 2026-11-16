@@ -9,6 +9,11 @@ public class VoiceChatResponse {
 
     private String answer;
 
-    // COLLEGE_KNOWLEDGE or GENERAL_AI
+    /**
+     * Possible values:
+     * COLLEGE_KNOWLEDGE - Answer supported by college documents
+     * GENERAL_AI        - Answer generated using general AI knowledge
+     * ERROR             - Retrieval or AI service failure
+     */
     private String answerType;
 }
